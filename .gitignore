@@ -1,7 +1,9 @@
 # 47 — never commit secrets or local state
 .47_dashboard_token
+.47_env
 memory_47.db
 audit_47.jsonl
+watch_state.json
 .47_browser_profile/
 __pycache__/
 *.pyc

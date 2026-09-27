@@ -1,3 +1,12 @@
+# 47 (Grok brain, local-first everything else)
+
+> MIGRATION NOTE (2026-09): 47 now uses **Grok/xAI as its only cloud LLM**
+> (`providers/grok.py`). Local-model (Ollama) and Groq execution paths were
+> removed. Set `XAI_API_KEY` (see `.env.example`) to enable the brain;
+> without it 47 runs degraded (files, tasks, system, 3D, dashboard all work,
+> chat answers "temporarily unavailable"). Much of the setup text below still
+> describes the retired Groq/Ollama paths and is kept for history.
+
 # 47 (100% free, local-first, no holograms)
 
 A personal AI assistant: listens (or reads typed input), talks, reasons,

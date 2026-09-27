@@ -35,10 +35,10 @@ import requests
 _warned_wayland = False
 _warned_no_xdotool = False
 
-# BUGFIX: "llama-3.2-90b-vision-preview" was retired by Groq. The current
-# (as of writing) multimodal model on Groq's free tier is Llama 4 Scout.
-# Check https://console.groq.com/docs/models if this ever 404s again.
-GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+# BUGFIX: "llama-3.2-90b-vision-preview" was retired by Groq. Vision now
+# routes through the Grok provider (providers/grok.py send_vision) — see
+# describe_screen/describe_camera below. Without a Grok key or a
+# vision-capable model they return an honest unavailable message.
 
 
 # ---------- Layer 1: active window tracking (always on, no images) ----------
@@ -96,14 +96,17 @@ def capture_screenshot_b64() -> str:
         return base64.b64encode(img_bytes).decode("utf-8")
 
 
-def describe_screen(groq_api_key: str, question: str = "What's on my screen right now?") -> str:
-    if not groq_api_key:
-        return "Screen understanding needs a free GROQ_API_KEY set (see README)."
+def describe_screen(question: str = "What's on my screen right now?") -> str:
     try:
         img_b64 = capture_screenshot_b64()
     except Exception as e:
         return f"Couldn't capture the screen: {e}"
-    return _ask_vision_model(groq_api_key, img_b64, question)
+    try:
+        from providers import grok as grok_provider
+        return grok_provider.send_vision(question, img_b64, "image/png")
+    except Exception:
+        return ("Screen understanding needs the Grok brain with a "
+                "vision-capable model — 47's vision is unavailable right now.")
 
 
 # ---------- Layer 3: camera snapshot (on-demand only, never continuous) ----------
@@ -120,36 +123,14 @@ def capture_camera_b64() -> str:
         cam.release()
 
 
-def describe_camera(groq_api_key: str, question: str = "What do you see?") -> str:
-    if not groq_api_key:
-        return "Camera understanding needs a free GROQ_API_KEY set (see README)."
+def describe_camera(question: str = "What do you see?") -> str:
     try:
         img_b64 = capture_camera_b64()
     except Exception as e:
         return f"Couldn't access the camera: {e}"
-    return _ask_vision_model(groq_api_key, img_b64, question)
-
-
-def _ask_vision_model(api_key: str, img_b64: str, question: str) -> str:
     try:
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": GROQ_VISION_MODEL,
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": question},
-                        {"type": "image_url",
-                         "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
-                    ],
-                }],
-                "max_tokens": 300,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        return f"Vision model call failed: {e}"
+        from providers import grok as grok_provider
+        return grok_provider.send_vision(question, img_b64, "image/jpeg")
+    except Exception:
+        return ("Camera understanding needs the Grok brain with a "
+                "vision-capable model — 47's vision is unavailable right now.")

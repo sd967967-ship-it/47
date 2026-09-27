@@ -1,7 +1,7 @@
 """
 Shared network resilience helper.
 
-Every outbound call in this project (Groq, Ollama, weather, page fetch,
+Every outbound call in this project (Grok, weather, page fetch,
 DuckDuckGo) used to be a single `requests.*` call with no retry — one
 dropped packet or a 429 and the whole turn just failed with a raw
 exception string. This wraps that in a small, boring retry-with-backoff

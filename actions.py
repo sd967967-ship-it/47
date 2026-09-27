@@ -272,25 +272,30 @@ def web_search(query: str):
 
 # ---------- File search (deeper OS control) ----------
 def find_files(name_fragment: str, search_root: str = None, max_results: int = 15):
-    """Search the filesystem for files whose name contains name_fragment."""
-    root = Path(search_root) if search_root else Path.home()
+    """Search approved folders for files whose name contains name_fragment."""
+    roots = [Path(search_root)] if search_root else _approved_roots()
     fragment = name_fragment.lower()
     matches = []
     scanned = 0
-    try:
-        for path in root.rglob("*"):
-            scanned += 1
-            if scanned > 20000:
-                break
-            try:
-                if fragment in path.name.lower():
-                    matches.append(str(path))
-                    if len(matches) >= max_results:
-                        break
-            except OSError:
-                continue
-    except (PermissionError, OSError):
-        pass
+    for root in roots:
+        try:
+            iterator = root.rglob("*")
+        except OSError:
+            continue
+        try:
+            for path in iterator:
+                scanned += 1
+                if scanned > 20000 or len(matches) >= max_results:
+                    break
+                try:
+                    if fragment in path.name.lower():
+                        matches.append(str(path))
+                except OSError:
+                    continue
+        except (PermissionError, OSError):
+            pass
+        if len(matches) >= max_results:
+            break
     return matches
 
 
@@ -309,7 +314,17 @@ def open_file(path: str) -> str:
 
 
 # ---------- Sandboxed local file access (stays on this machine) ----------
-ALLOW_ROOTS = [Path.home() / "Documents", Path.home() / "Desktop", Path.home() / "Downloads"]
+# Approved-folder scope (spec: 47 reads/acts ONLY in user-selected folders).
+# Override with 47_APPROVED_FOLDERS=os.pathsep-separated absolute paths.
+# Default: read-friendly personal folders. Everything else is refused.
+def _approved_roots():
+    custom = os.environ.get("47_APPROVED_FOLDERS", "")
+    if custom.strip():
+        return [Path(p).expanduser() for p in custom.split(os.pathsep) if p.strip()]
+    home = Path.home()
+    return [home / "Documents", home / "Desktop", home / "Downloads", home / "Pictures"]
+
+ALLOW_ROOTS = _approved_roots()
 
 _WRITE_BLOCKED_DIRS = ("windows", "system32", "program files", "/etc", "/sys", "/proc")
 
@@ -319,6 +334,10 @@ def _safe_resolve(p: str, for_write: bool = False) -> Path:
             else (Path.home() / p)).resolve()
     if for_write and any(b in str(cand).lower() for b in _WRITE_BLOCKED_DIRS):
         raise ValueError("system locations are read-only")
+    roots = [r.resolve() for r in _approved_roots()]
+    if not any(str(cand).lower().startswith(str(r).lower() + os.sep) or str(cand).lower() == str(r).lower()
+               for r in roots):
+        raise ValueError(f"outside approved folders: {cand}")
     return cand
 
 

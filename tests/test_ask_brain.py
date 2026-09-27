@@ -1,4 +1,4 @@
-"""Dual-brain fallback tests for 47 (Groq <-> Ollama)."""
+"""Grok-only provider tests for 47 (no Ollama paths may remain active)."""
 import os
 import sys
 import types
@@ -47,49 +47,57 @@ if "mcp" not in sys.modules:
 os.environ["DASHBOARD_TOKEN"] = "test-token-for-suite"
 
 import main
+from providers import grok as grok_provider
 
 
-class TestAskBrainFallback(unittest.TestCase):
-    def test_groq_success_no_fallback(self):
-        with patch.object(main, "BRAIN", "groq"), \
-             patch.object(main, "GROQ_API_KEY", "fake"), \
-             patch.object(main, "ask_groq", return_value="groq answer") as mg, \
-             patch.object(main, "ask_ollama") as mo, \
+class TestGrokOnlyBrain(unittest.TestCase):
+    def test_no_ollama_attributes(self):
+        for attr in ("ask_ollama", "ask_groq", "BRAIN", "OLLAMA_URL",
+                     "OLLAMA_MODEL", "GROQ_API_KEY", "GROQ_MODEL"):
+            self.assertFalse(hasattr(main, attr), f"main.{attr} must not exist")
+
+    def test_no_ollama_source_references(self):
+        import pathlib
+        src = pathlib.Path(main.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("localhost:11434", src)
+        self.assertNotIn("api.groq.com", src)
+
+    def test_degraded_without_key(self):
+        with patch.object(grok_provider, "_key", return_value=""):
+            with patch.object(main.memory, "log_turn"):
+                reply = main.ask_brain("hello")
+        self.assertIn("temporarily unavailable", reply)
+
+    def test_answer_flows_through(self):
+        fake_tools = [{"type": "function",
+                       "function": {"name": "fetch", "parameters": {}}}]
+        with patch.object(grok_provider, "send_message", return_value="hi there"), \
+             patch.object(grok_provider, "request_tool_plan", return_value=[]), \
+             patch.object(main.mcp_client, "list_all_tools", return_value=fake_tools), \
              patch.object(main.memory, "log_turn"):
-            self.assertEqual(main.ask_brain("hi"), "groq answer")
-            mg.assert_called_once()
-            mo.assert_not_called()
+            reply = main.ask_brain("hello")
+        self.assertEqual(reply, "hi there")
 
-    def test_groq_fail_falls_back_to_ollama(self):
-        with patch.object(main, "BRAIN", "groq"), \
-             patch.object(main, "GROQ_API_KEY", "fake"), \
-             patch.object(main, "ask_groq",
-                          return_value="I couldn't reach Groq. Error: down"), \
-             patch.object(main, "ask_ollama", return_value="local answer"), \
+    def test_tool_plan_executes_locally(self):
+        fake_tools = [{"type": "function",
+                       "function": {"name": "fetch", "parameters": {}}}]
+        plan = [{"name": "fetch", "args": {"url": "https://example.com"}}]
+        with patch.object(grok_provider, "send_message", return_value="done"), \
+             patch.object(grok_provider, "request_tool_plan", return_value=plan), \
+             patch.object(main.mcp_client, "list_all_tools", return_value=fake_tools), \
+             patch.object(main.mcp_client, "call_tool", return_value="page text") as mc, \
              patch.object(main.memory, "log_turn"):
-            reply = main.ask_brain("hi")
-            self.assertIn("local answer", reply)
-            self.assertIn("Groq unavailable", reply)
+            reply = main.ask_brain("fetch https://example.com please")
+        self.assertEqual(reply, "done")
+        mc.assert_called_once_with("fetch", {"url": "https://example.com"})
 
-    def test_both_fail_keeps_primary_error(self):
-        with patch.object(main, "BRAIN", "groq"), \
-             patch.object(main, "GROQ_API_KEY", "fake"), \
-             patch.object(main, "ask_groq",
-                          return_value="I couldn't reach Groq. Error: down"), \
-             patch.object(main, "ask_ollama",
-                          return_value="I couldn't reach my local brain (Ollama). Error: down"), \
-             patch.object(main.memory, "log_turn"):
-            reply = main.ask_brain("hi")
-            self.assertTrue(reply.startswith("I couldn't reach Groq"))
 
-    def test_ollama_fail_falls_back_to_groq(self):
-        with patch.object(main, "BRAIN", "ollama"), \
-             patch.object(main, "GROQ_API_KEY", "fake"), \
-             patch.object(main, "ask_ollama",
-                          return_value="I couldn't reach my local brain (Ollama). Error: down"), \
-             patch.object(main, "ask_groq", return_value="groq answer"), \
-             patch.object(main.memory, "log_turn"):
-            self.assertEqual(main.ask_brain("hi"), "groq answer")
+class TestVault(unittest.TestCase):
+    def test_redact(self):
+        import vault
+        self.assertNotIn("xai-abc123XYZ", vault.redact("key xai-abc123XYZ here"))
+        self.assertIn("<REDACTED>", vault.redact("key xai-abc123XYZ here"))
+        self.assertEqual(vault.get("DEFINITELY_NOT_SET_47"), "")
 
 
 if __name__ == "__main__":
