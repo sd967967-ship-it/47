@@ -36,6 +36,33 @@ EDGE_PITCH = os.environ.get("JARVIS_PITCH", "-5Hz")
 _pyttsx_engine = None
 
 
+def clean_for_speech(text: str) -> str:
+    """Strip markdown/formatting noise so TTS speaks words, not symbols.
+    Dashboard display is untouched — this only feeds the voice engine."""
+    import re as _re
+    if not text:
+        return text
+    t = text
+    t = _re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", t)   # images -> alt text
+    t = _re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", t)    # links -> text
+    t = _re.sub(r"^#{1,6}\s*", "", t, flags=_re.M)     # headers
+    t = _re.sub(r"\*\*(.+?)\*\*", r"\1", t)            # bold
+    t = _re.sub(r"__(.+?)__", r"\1", t)
+    t = _re.sub(r"(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"\1", t)  # italic
+    t = t.replace("`", "")                             # code ticks
+    t = _re.sub(r"^\s*[-*_]{3,}\s*$", "", t, flags=_re.M)  # rules
+    t = _re.sub(r"^\s*\|?[\s:\-|]+\|?\s*$", "", t, flags=_re.M)  # table separators
+    t = t.replace("|", ", ")                           # table cells -> pauses
+    t = _re.sub(r"^\s*(?:[-*]|\d+[.)])\s+", "", t, flags=_re.M)  # bullets
+    t = _re.sub(r"^\s*>\s?", "", t, flags=_re.M)        # quotes
+    t = t.replace("and/or", "and or").replace("w/o", "without").replace("w/", "with")
+    t = _re.sub(r"(?<!\S)/(?!\S)", ", ", t)             # lone slashes
+    t = t.replace("*", "").replace("_", " ")           # leftover emphasis
+    t = _re.sub(r"[ \t]+", " ", t)
+    t = _re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()
+
+
 def _get_pyttsx_engine():
     global _pyttsx_engine
     if _pyttsx_engine is None:
@@ -136,17 +163,21 @@ def _speak_worker():
 
 def _speak_one(text: str):
     """Tries the free online neural voice first, falls back to the fully
-    offline voice on any failure (no internet, edge-tts missing, etc.)."""
+    offline voice on any failure (no internet, edge-tts missing, etc.).
+    Speaks the cleaned (symbol-free) version; logs show the original."""
+    say = clean_for_speech(text)
+    if not say:
+        return
     with _lock:
         path = None
         try:
             fd, path = tempfile.mkstemp(suffix=".mp3")
             os.close(fd)
-            asyncio.run(_edge_tts_to_file(text, path))
+            asyncio.run(_edge_tts_to_file(say, path))
             if not _play_audio_file(path):
                 raise RuntimeError("no audio player available")
         except Exception:
-            _speak_offline(text)
+            _speak_offline(say)
         finally:
             if path and os.path.exists(path):
                 try:
