@@ -514,7 +514,6 @@ function renderEmblem(payload) {
     emblemRings.push(ring);
   });
 }
-}
 
 function renderObject3D(payload) {
   const type = payload.type;
@@ -587,9 +586,7 @@ socket.on('disconnect', () => {
 });
 socket.on('reconnect', () => { location.reload(); });
 socket.on('connect_error', (err) => {
-  document.getElementById('hud').innerHTML =
-    '<h1 style="color:#ff5f5f">47</h1><p style="color:#ff9a9a">' +
-    'Connection rejected — missing or wrong access token in the URL.</p>';
+  connLost('Connection rejected — missing or wrong access token in the URL.');
 });
 socket.on('data_47', (msg) => {
   if (msg.kind === 'vitals') { updateVitals(msg.payload); return; }
