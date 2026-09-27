@@ -22,6 +22,14 @@ class TestPlanner(unittest.TestCase):
         steps = planner.split_steps("a then b then c then d then e then f")
         self.assertLessEqual(len(steps), planner.MAX_STEPS)
 
+    def test_and_plus_verb_splits(self):
+        steps = planner.split_steps("open youtube and play tera zikr")
+        self.assertEqual(len(steps), 2)
+        self.assertTrue(planner.needs_plan("open youtube and play tera zikr"))
+
+    def test_plain_and_does_not_split(self):
+        self.assertFalse(planner.needs_plan("bread and butter"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -12,19 +12,23 @@ import re
 MAX_STEPS = 4
 
 _SEQUENCE_SPLIT = re.compile(
-    r"\s*(?:and then|after that|followed by|finally|then|next|;)\s*",
+    r"\s*(?:and then|after that|followed by|finally|then|next|;)\s*"
+    r"|\s+and\s+(?=(?:play|search|open|find|read|run|execute|convert|fetch|"
+    r"remind|email|send|write|weather|browse)\b)",
     re.IGNORECASE,
 )
 
 _SEQUENCE_HINTS = re.compile(
-    r"\b(then|after that|followed by|finally|first\b.*\bthen|step \d|and then)\b",
+    r"\b(then|after that|followed by|finally|first\b.*\bthen|step \d|and then)\b"
+    r"|\band\s+(?:play|search|open|find|read|run|execute|convert|fetch|"
+    r"remind|email|send|write|weather|browse)\b",
     re.IGNORECASE,
 )
 
 _ACTION_VERBS = (
     "search", "find", "research", "open", "browse", "send", "email",
     "create", "write", "read", "summarize", "run", "execute", "remind",
-    "convert", "fetch", "weather",
+    "convert", "fetch", "weather", "play", "youtube", "google",
 )
 
 
