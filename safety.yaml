@@ -1,0 +1,12 @@
+# 47 safety policy — extra "confirm" patterns without touching code.
+# Adapted from the `safety:` section idea in JARVIS-6's config.yaml
+# (psycoks/Jarvis): confirm_before lists tools/commands that must pause for
+# a spoken/typed "yes". Here they are regexes OR'd with shell.py's built-ins.
+confirm_before:
+  - "\bvssadmin\b"
+  - "\bbcdedit\b"
+  - "\bwevtutil\b"
+  - "\bcipher\b.*\/w"
+  - "\btakeown\b"
+  - "\bnet\s+user\b.*\/add"
+  - "\breg\s+add\b"

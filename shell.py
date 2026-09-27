@@ -63,6 +63,59 @@ _DESTRUCTIVE_PATTERNS = [
 ]
 _DESTRUCTIVE_RE = re.compile("|".join(_DESTRUCTIVE_PATTERNS), re.IGNORECASE)
 
+# Extensible safety policy (safety.yaml, JARVIS-6 `confirm_before` idea):
+# extra regexes requiring "confirm", so new risky patterns can be added
+# without code changes. Parsed minimally (no PyYAML dep) and cached.
+_SAFETY_PATH = os.environ.get("47_SAFETY_YAML") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "safety.yaml")
+_extra_patterns = []
+_extra_mtime = 0.0
+
+
+def _load_extra_patterns(path: str = None):
+    global _extra_patterns, _extra_mtime
+    target = path or _SAFETY_PATH
+    try:
+        mtime = os.path.getmtime(target)
+    except OSError:
+        return _extra_patterns
+    if target == _SAFETY_PATH and mtime == _extra_mtime:
+        return _extra_patterns
+    patterns = []
+    try:
+        with open(target, "r", encoding="utf-8") as f:
+            in_list = False
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("confirm_before:"):
+                    in_list = True
+                    continue
+                if in_list:
+                    if stripped.startswith("- "):
+                        pat = stripped[2:].strip().strip("\"'")
+                        if pat:
+                            patterns.append(pat)
+                    elif stripped and not stripped.startswith("#"):
+                        in_list = False
+        compiled = [p for p in patterns if p]
+        # Validate all compile; a bad line must not kill the shell module.
+        for p in compiled:
+            re.compile(p)
+    except (OSError, re.error):
+        return _extra_patterns
+    if target == _SAFETY_PATH:
+        _extra_patterns = compiled
+        _extra_mtime = mtime
+        return _extra_patterns
+    return compiled
+
+
+def needs_confirmation(command: str, safety_path: str = None) -> bool:
+    if _DESTRUCTIVE_RE.search(command):
+        return True
+    extra = _load_extra_patterns(safety_path)
+    return any(re.search(p, command, re.IGNORECASE) for p in extra)
+
 # BUGFIX: the old module kept exactly one pending confirmation in a single
 # global dict. That's fine for the voice loop (there's only ever one "47" to
 # talk to), but the typed dashboard box can have several browser tabs open
@@ -73,10 +126,6 @@ _DESTRUCTIVE_RE = re.compile("|".join(_DESTRUCTIVE_PATTERNS), re.IGNORECASE)
 # session id), so one context's staged command can't leak into another's.
 _pending = {}
 _lock = threading.Lock()
-
-
-def needs_confirmation(command: str) -> bool:
-    return bool(_DESTRUCTIVE_RE.search(command))
 
 
 def stage_for_confirmation(context_id: str, command: str, elevate: bool):
