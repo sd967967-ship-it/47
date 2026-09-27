@@ -24,6 +24,8 @@ all of it runs locally.
 - Pending-confirmation TTL (60s expiry) — the server-granted-confirmation
   principle from bertrandmbanwi/Jarvis `jarvis/core/confirmation.py`
   (**MIT**); implemented on 47's per-context pending store.
+- `tests/test_golden.py` deterministic eval harness — the golden-cases idea
+  from bertrandmbanwi/Jarvis `evals/golden_cases.yml` (**MIT**).
 
 ## Adapted patterns (reimplemented, no code copied)
 
