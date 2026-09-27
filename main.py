@@ -671,6 +671,14 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         speak("Email needs the Gmail API setup — see actions.py for steps.")
         return
 
+    if "brain status" in lowered or "brain health" in lowered:
+        from providers import grok as _grok
+        status = _grok.health_check()
+        report = f"Brain status: {status}."
+        speak(report)
+        push_to_dashboard("text", {"content": report})
+        return
+
     if "tomorrow" in lowered and ("routine" in lowered or "agenda" in lowered
                                   or "schedule" in lowered or "plan" in lowered
                                   or "what" in lowered or "my day" in lowered):
