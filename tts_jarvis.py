@@ -21,9 +21,11 @@ Run `edge-tts --list-voices` (after `pip install edge-tts`) to see options —
 import asyncio
 import os
 import platform
+import queue
 import subprocess
 import tempfile
 import threading
+import time
 
 _lock = threading.Lock()
 
@@ -88,17 +90,54 @@ def _play_audio_file(path: str) -> bool:
 
 
 def speak(text: str):
-    """Thread-safe. Speaks text aloud: tries the free online neural voice
-    first, falls back to the fully offline voice on any failure (no
-    internet, edge-tts not installed, playback error, etc.)."""
+    """Non-blocking: prints immediately and queues audio on a single worker,
+    so command handling (and the dashboard) never waits on TTS synthesis or
+    playback. Items are spoken in order, one at a time."""
     if not text:
         return
-    with _lock:
+    try:
+        print(f"47: {text}", flush=True)
+    except UnicodeEncodeError:
+        safe = text.encode("ascii", errors="replace").decode()
+        print(f"47: {safe}", flush=True)
+    _ensure_worker()
+    try:
+        _speak_queue.put_nowait(text[:600])
+    except queue.Full:
+        pass
+
+
+_speak_queue: queue.Queue = queue.Queue(maxsize=8)
+_worker_started = False
+_worker_lock = threading.Lock()
+
+
+def _ensure_worker():
+    global _worker_started
+    with _worker_lock:
+        if _worker_started:
+            return
+        _worker_started = True
+    thread = threading.Thread(target=_speak_worker, daemon=True, name="tts-47")
+    thread.start()
+
+
+def _speak_worker():
+    while True:
+        text = _speak_queue.get()
         try:
-            print(f"47: {text}", flush=True)
-        except UnicodeEncodeError:
-            safe = text.encode("ascii", errors="replace").decode()
-            print(f"47: {safe}", flush=True)
+            _speak_one(text)
+        except Exception:
+            pass
+        finally:
+            _speak_queue.task_done()
+        time.sleep(0.4)  # breath between utterances
+
+
+def _speak_one(text: str):
+    """Tries the free online neural voice first, falls back to the fully
+    offline voice on any failure (no internet, edge-tts missing, etc.)."""
+    with _lock:
         path = None
         try:
             fd, path = tempfile.mkstemp(suffix=".mp3")

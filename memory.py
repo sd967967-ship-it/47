@@ -197,6 +197,20 @@ def due_unreminded_tasks(now_ts: float):
     return rows
 
 
+def tasks_due_between(start_ts: float, end_ts: float):
+    """Open tasks due in [start_ts, end_ts), oldest-due first. Powers the
+    tomorrow-agenda and proactive briefing without exposing full history."""
+    conn = _connect()
+    _ensure_tasks_table(conn)
+    rows = conn.execute(
+        "SELECT id, description, due_at FROM tasks WHERE status='open' "
+        "AND due_at IS NOT NULL AND due_at >= ? AND due_at < ? ORDER BY due_at",
+        (start_ts, end_ts),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
 def mark_reminded(task_id: int):
     conn = _connect()
     conn.execute("UPDATE tasks SET reminded = 1 WHERE id = ?", (task_id,))

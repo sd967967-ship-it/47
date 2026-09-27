@@ -396,9 +396,10 @@ def push_to_dashboard(kind: str, payload: dict):
 def maybe_show_3d(text: str):
     """Always-3D policy for 47: named categories render their parametric
     scene; ask/show/model/render questions fall back to a labeled generic
-    object so the dashboard never stays flat when asked to *see* something.
-    Text answers always go to the 2D panel alongside — never 3D-only."""
-    category = visual3d.classify_or_generic(text)
+    object; anything else gets the 47 emblem core — so the dashboard always
+    shows a 3D scene, never just charts. Text answers always go to the 2D
+    panel alongside — never 3D-only."""
+    category = visual3d.classify_or_generic(text) or "emblem"
     kind, payload = visual3d.build_payload(category, text)
     if kind:
         push_to_dashboard(kind, payload)
@@ -727,6 +728,27 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         speak("Email needs the Gmail API setup — see actions.py for steps.")
         return
 
+    if "tomorrow" in lowered and ("routine" in lowered or "agenda" in lowered
+                                  or "schedule" in lowered or "plan" in lowered
+                                  or "what" in lowered or "my day" in lowered):
+        import watch as _watch
+        report = _watch.agenda_text()
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if "briefing" in lowered or "world news" in lowered or "headlines" in lowered:
+        import watch as _watch
+        heads = _watch.get_world_headlines(limit=5)
+        agenda = _watch.agenda_text()
+        report = ("World right now:\n" + "\n".join(f"- {h}" for h in heads)
+                  + "\n\n" + agenda) if heads else agenda
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        push_to_dashboard("briefing", {"headlines": heads,
+                                       "tasks_open": len(memory.list_open_tasks())})
+        return
+
     conv = re.match(r".*?convert\s+([\d.]+)\s+([a-z$]+)\s+to\s+([a-z$]+)", lowered)
     if conv:
         import publicdata as _pd
@@ -855,8 +877,8 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
 
     push_to_dashboard("text", {"content": "47 is thinking…"})
     reply = ask_brain(text)
-    speak(reply[:280])
     push_to_dashboard("text", {"content": reply})
+    speak(reply[:280])
 
 
 # ---------- Background-thread supervision ----------
@@ -930,6 +952,35 @@ def ambient_alert(message: str):
 
 def start_ambient():
     ambient.ambient_loop(push_to_dashboard, interval_seconds=5, alert_fn=ambient_alert)
+
+
+def start_proactive():
+    """The robot-inside-the-computer loop: world headlines + agenda pushed
+    to the dashboard every 30 min, spoken only when something is new (and
+    only in daytime). Plus one full spoken briefing shortly after boot."""
+    import watch as _watch
+    if os.environ.get("47_PROACTIVE", "1") != "1":
+        print("[proactive] disabled via 47_PROACTIVE=0.")
+        return
+    time.sleep(25)  # let the dashboard connect first
+    try:
+        speak(_watch.startup_briefing())
+    except Exception as e:
+        print(f"[proactive] startup briefing failed: {e}")
+    while True:
+        try:
+            fresh = _watch.new_headlines(limit=2)
+            heads = _watch.get_world_headlines(limit=5)
+            try:
+                open_n = len(memory.list_open_tasks())
+            except Exception:
+                open_n = 0
+            push_to_dashboard("briefing", {"headlines": heads, "tasks_open": open_n})
+            if fresh and _watch.is_daytime():
+                speak(f"Update: {fresh[0]}")
+        except Exception as e:
+            print(f"[proactive] loop failed: {e}")
+        time.sleep(1800)
 
 
 def start_window_tracking():
@@ -1038,6 +1089,7 @@ if __name__ == "__main__":
 
     supervise("voice_loop", voice_loop)
     supervise("ambient", start_ambient)
+    supervise("proactive", start_proactive)
     supervise("window_tracking", start_window_tracking)
     supervise("task_reminders", start_task_reminders)
 

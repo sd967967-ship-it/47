@@ -61,6 +61,11 @@ def get_system_snapshot() -> dict:
         uptime_s = int(time.time() - psutil.boot_time())
     except Exception:
         uptime_s = None
+    try:
+        import memory as _memory
+        tasks_open = len(_memory.list_open_tasks())
+    except Exception:
+        tasks_open = None
     return {
         "cpu_percent": psutil.cpu_percent(interval=0.3),
         "cpu_per_core": per_core,
@@ -74,6 +79,7 @@ def get_system_snapshot() -> dict:
         "process_count": len(psutil.pids()),
         "top_procs": top,
         "uptime_s": uptime_s,
+        "tasks_open": tasks_open,
     }
 
 
@@ -87,6 +93,8 @@ def ambient_loop(push_fn, interval_seconds: int = 5, alert_fn=None):
     warned_battery = False
     last_cpu_alert = 0.0
     last_batt_alert = 0.0
+    last_disk_alert = 0.0
+    last_ram_alert = 0.0
     COOLDOWN_S = 1800  # 30 min between repeat alerts — no more nagging
 
     while True:
@@ -104,5 +112,14 @@ def ambient_loop(push_fn, interval_seconds: int = 5, alert_fn=None):
                     and not snap["battery_plugged"] and now - last_batt_alert > COOLDOWN_S:
                 alert_fn("Your battery is below 15 percent and not charging.")
                 last_batt_alert = now
+
+            freest = min((d["free_gb"] for d in snap.get("drives", [])), default=None)
+            if freest is not None and freest < 5 and now - last_disk_alert > COOLDOWN_S:
+                alert_fn(f"Warning — a drive is down to {freest} gigabytes free. Time to clean up.")
+                last_disk_alert = now
+
+            if snap["ram_percent"] > 90 and now - last_ram_alert > COOLDOWN_S:
+                alert_fn("Memory is over 90 percent full — consider closing heavy apps.")
+                last_ram_alert = now
 
         time.sleep(interval_seconds)

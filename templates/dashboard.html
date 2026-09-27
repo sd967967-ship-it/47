@@ -12,6 +12,37 @@
   #hud p { margin:4px 0 0; font-size:12px; color:#7fdfff88; }
   #hudRow { display:flex; gap:10px; align-items:center; font-size:11px; color:#7fdfff; margin-top:6px; }
   #liveDot { width:8px; height:8px; border-radius:50%; background:#2fbf6f; box-shadow:0 0 6px #2fbf6f; display:inline-block; }
+  #landing { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:20; pointer-events:none; transition:opacity .45s; gap:14px; }
+  #landing .logo {
+    font-size:min(24vw,190px); font-weight:200; letter-spacing:.12em; line-height:1;
+    padding:6px 46px 18px; border-radius:28px; color:#eafcff;
+    background:linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,.03) 55%, rgba(79,216,255,.10));
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    filter:drop-shadow(0 0 26px rgba(79,216,255,.55));
+    border:1px solid rgba(255,255,255,.14);
+    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    box-shadow:0 0 60px rgba(79,216,255,.12), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  #landing p { margin:0; font-size:13px; letter-spacing:2px; color:#7fdfff99; }
+  body.responding #landing { opacity:0; }
+  #miniLogo { position:absolute; top:14px; left:16px; z-index:10; display:none;
+    font-size:26px; font-weight:200; letter-spacing:.12em; color:#eafcff;
+    text-shadow:0 0 12px #4fd8ff; }
+  body.responding #miniLogo { display:block; }
+  #miniRow { font-size:11px; color:#7fdfff; letter-spacing:1px; margin-top:2px; }
+  #sidePanel {
+    position:absolute; top:120px; right:16px; width:250px; max-height:62%;
+    overflow-y:auto; z-index:10; display:none;
+    background:rgba(10,20,30,.72); border:1px solid #2fbfff55; border-radius:12px;
+    padding:12px 14px; color:#c7f5ff;
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  }
+  body.responding #sidePanel { display:block; }
+  #s-clock { font-size:30px; font-weight:200; letter-spacing:2px; color:#eafcff; }
+  #s-date { font-size:12px; color:#7fdfff; letter-spacing:1px; margin-bottom:8px; }
+  .sideSec { font-size:11px; letter-spacing:2px; color:#4fd8ff; margin:10px 0 4px;
+    border-top:1px solid #2fbfff33; padding-top:8px; }
+  #s-brief div { font-size:12px; margin:3px 0; color:#c7f5ff; }
   .corner { position:fixed; width:26px; height:26px; border:2px solid #2fbfff66; z-index:9; pointer-events:none; }
   #c1 { top:8px; left:8px; border-right:none; border-bottom:none; }
   #c2 { top:8px; right:8px; border-left:none; border-bottom:none; }
@@ -79,10 +110,20 @@
 </style>
 </head>
 <body>
-<div id="hud">
-  <h1>47</h1>
-  <p>live data visualization</p>
-  <div id="hudRow"><span id="liveDot"></span><span>LIVE</span><span id="hudClock">--:--</span><span>FPS <span id="hudFps">--</span></span><span id="hudObj">OBJ:--</span></div>
+<div id="landing">
+  <div class="logo">47</div>
+  <p id="landingSub">SAY "HI 47" OR TYPE BELOW</p>
+</div>
+<div id="miniLogo">47<div id="miniRow"><span id="liveDot"></span> <span>LIVE</span> <span>FPS <span id="hudFps">--</span></span> <span id="hudObj">OBJ:47</span></div></div>
+<div id="sidePanel" aria-live="polite">
+  <div id="s-clock">--:--</div>
+  <div id="s-date">--</div>
+  <div class="sideSec">SYSTEM</div>
+  <div id="s-sys" style="font-size:12px">CPU -- · RAM -- · Disk --</div>
+  <div class="sideSec">TASKS</div>
+  <div id="s-tasks" style="font-size:12px">--</div>
+  <div class="sideSec">WORLD</div>
+  <div id="s-brief"><div>Briefing loads on start…</div></div>
 </div>
 <div class="corner" id="c1"></div><div class="corner" id="c2"></div><div class="corner" id="c3"></div><div class="corner" id="c4"></div>
 <div id="vitals" aria-live="polite">
@@ -210,6 +251,7 @@ let controls = null;
 })();
 
 function clearGroup() {
+  emblemRings = [];
   dataGroup.traverse((o) => {
     if (o.geometry && o.geometry !== undefined) {
       try { o.geometry.dispose(); } catch (e) {}
@@ -453,6 +495,27 @@ function renderGeneric(payload) {
   dataGroup.add(wire);
 }
 
+let emblemRings = [];
+function renderEmblem(payload) {
+  clearGroup();
+  autoRotate = true;
+  emblemRings = [];
+  labelObject('47', 'online · assistant core');
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1.6, 1), glowMat(0x4fd8ff, 0x0a3a4a));
+  dataGroup.add(core);
+  const wire = new THREE.Mesh(new THREE.IcosahedronGeometry(1.66, 1),
+    new THREE.MeshBasicMaterial({ color: 0xc7f5ff, wireframe: true, transparent: true, opacity: 0.35 }));
+  dataGroup.add(wire);
+  [[2.8, 0.5], [3.5, -0.45]].forEach(([r, tilt]) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.05, 8, 72),
+      new THREE.MeshBasicMaterial({ color: 0x2fbfff, transparent: true, opacity: 0.7 }));
+    ring.rotation.x = Math.PI / 2 + tilt;
+    dataGroup.add(ring);
+    emblemRings.push(ring);
+  });
+}
+}
+
 function renderObject3D(payload) {
   const type = payload.type;
   if (type === 'building') renderBuilding(payload);
@@ -462,6 +525,7 @@ function renderObject3D(payload) {
   else if (type === 'electronics') renderElectronics(payload);
   else if (type === 'nature') renderNature(payload);
   else if (type === 'furniture') renderFurniture(payload);
+  else if (type === 'emblem') renderEmblem(payload);
   else renderGeneric(payload);
 }
 
@@ -488,6 +552,16 @@ function updateVitals(v) {
     v.battery_percent !== null ? `${v.battery_percent}%${v.battery_plugged ? ' ⚡' : ''}` : 'N/A';
   const setBar = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = Math.max(0, Math.min(100, pct)) + '%'; };
   setBar('b-cpu', v.cpu_percent); setBar('b-ram', v.ram_percent); setBar('b-disk', v.disk_percent);
+  const sys = document.getElementById('s-sys');
+  if (sys) sys.textContent = `CPU ${v.cpu_percent}% · RAM ${v.ram_percent}% · Disk ${v.disk_percent}%`;
+  if (v.tasks_open !== undefined && v.tasks_open !== null) {
+    const t = document.getElementById('s-tasks');
+    if (t) t.textContent = `${v.tasks_open} open`;
+  }
+}
+
+function enterResponseMode() {
+  document.body.classList.add('responding');
 }
 
 // ---------- Socket connection ----------
@@ -503,8 +577,8 @@ const socket = io({ query: { token: _47Token },
   reconnection: true, reconnectionAttempts: Infinity,
   reconnectionDelay: 1000, reconnectionDelayMax: 8000, timeout: 15000 });
 function connLost(msg) {
-  document.getElementById('hud').innerHTML =
-    '<h1 style="color:#ff5f5f">47</h1><p style="color:#ff9a9a">' + msg + '</p>';
+  const sub = document.getElementById('landingSub');
+  if (sub) { sub.textContent = msg; sub.style.color = '#ff9a9a'; }
 }
 socket.on('connect', () => { document.getElementById('liveDot').style.background = '#2fbf6f'; });
 socket.on('disconnect', () => {
@@ -520,8 +594,25 @@ socket.on('connect_error', (err) => {
 socket.on('data_47', (msg) => {
   if (msg.kind === 'vitals') { updateVitals(msg.payload); return; }
   if (msg.kind === 'window') { document.getElementById('v-window').textContent = msg.payload.title.slice(0,20); return; }
-  if (msg.kind === 'text') { showText(msg.payload); return; }
+  if (msg.kind === 'briefing') {
+    enterResponseMode();
+    const box = document.getElementById('s-brief');
+    if (box && msg.payload.headlines) {
+      box.innerHTML = '';
+      msg.payload.headlines.slice(0, 5).forEach((h) => {
+        const d = document.createElement('div');
+        d.textContent = '• ' + h;
+        box.appendChild(d);
+      });
+    }
+    if (msg.payload.tasks_open !== undefined) {
+      document.getElementById('s-tasks').textContent = `${msg.payload.tasks_open} open`;
+    }
+    return;
+  }
+  if (msg.kind === 'text') { enterResponseMode(); showText(msg.payload); return; }
   // Visuals no longer hide the 2D text panel: 3D + detailed text coexist.
+  enterResponseMode();
   if (msg.kind === 'bars') renderBars(msg.payload);
   else if (msg.kind === 'network') renderNetwork(msg.payload);
   else if (msg.kind === 'object3d') renderObject3D(msg.payload);
@@ -532,6 +623,7 @@ function sendTyped() {
   const input = document.getElementById('typedInput');
   const text = input.value.trim();
   if (!text) return;
+  enterResponseMode();
   socket.emit('user_text_command', { text });
   input.value = '';
 }
@@ -540,16 +632,20 @@ document.getElementById('typedInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') sendTyped();
 });
 
-// Demo data on load so the dashboard isn't empty
-renderBars({ labels: ['A','B','C','D'], values: [3,7,4,9] });
+// Demo scene on load: the 47 emblem core, so 3D is always present
+renderEmblem({});
 
 document.getElementById('zoomIn').addEventListener('click', () => { camera.position.multiplyScalar(0.85); });
 document.getElementById('zoomOut').addEventListener('click', () => { camera.position.multiplyScalar(1.18); });
 document.getElementById('zoomReset').addEventListener('click', () => { camera.position.set(0, 6, 18); autoRotate = true; });
 
 setInterval(() => {
-  const c = document.getElementById('hudClock');
-  if (c) c.textContent = new Date().toLocaleTimeString();
+  const now = new Date();
+  const t = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const c = document.getElementById('s-clock');
+  if (c) c.textContent = t;
+  const d = document.getElementById('s-date');
+  if (d) d.textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 }, 1000);
 
 // ---------- Render loop ----------
@@ -570,6 +666,7 @@ function animate() {
     fpsAcc = 0; fpsN = 0;
   }
   if (autoRotate) dataGroup.rotation.y += 0.003;
+  emblemRings.forEach((r, i) => { r.rotation.z += (i === 0 ? 0.004 : -0.003); });
   if (controls) controls.update();
   renderer.render(scene, camera);
 }
