@@ -53,6 +53,18 @@ class TestDashboardScript(unittest.TestCase):
                       "emblemRings", "textClose"):
             self.assertIn(token, script, f"missing {token}")
 
+    def test_single_centered_response(self):
+        # Exactly one response surface: no mirror of the reply text into
+        # the right rail (railBody removed), panel centered via transform.
+        text = HTML.read_text(encoding="utf-8")
+        self.assertNotIn("railBody", text)
+        self.assertIn("translate(-50%,-50%)", text)
+
+    def test_robotic_type_stack(self):
+        text = HTML.read_text(encoding="utf-8")
+        self.assertIn("Share Tech Mono", text)
+        self.assertIn("--font-display", text)
+
 
 if __name__ == "__main__":
     unittest.main()

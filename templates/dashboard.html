@@ -4,17 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <title>47 — Live Data</title>
 <style>
-  html, body { margin:0; padding:0; height:100%; background:#05070d; overflow:hidden; font-family: 'Rajdhani','Segoe UI',sans-serif; }
+  :root {
+    --font-display: 'Orbitron', 'Rajdhani', 'Segoe UI', sans-serif;
+    --font-body: 'Share Tech Mono', 'Cascadia Code', Consolas, monospace;
+  }
+  html, body { margin:0; padding:0; height:100%; background:#05070d; overflow:hidden; font-family: var(--font-body); }
   #hud { position:absolute; top:16px; left:16px; color:#4fd8ff; z-index:10; }
-  #hud h1 { margin:0; font-size:20px; letter-spacing:3px; text-shadow:0 0 8px #4fd8ff; }
+  #hud h1 { margin:0; font-size:20px; letter-spacing:3px; text-shadow:0 0 8px #4fd8ff; font-family:var(--font-display); }
   #hud p { margin:4px 0 0; font-size:12px; color:#7fdfff88; }
   #hudRow { display:flex; gap:10px; align-items:center; font-size:11px; color:#7fdfff; margin-top:6px; }
   #liveDot { width:8px; height:8px; border-radius:50%; background:#2fbf6f; box-shadow:0 0 6px #2fbf6f; display:inline-block; }
   #landing { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:20; pointer-events:none; transition:opacity .45s; gap:14px; }
   #landing .logo {
-    font-size:min(24vw,190px); font-weight:200; letter-spacing:.12em; line-height:1;
+    font-family:var(--font-display);
+    font-size:min(24vw,190px); font-weight:600; letter-spacing:.12em; line-height:1;
     padding:6px 46px 18px; border-radius:28px; color:#eafcff;
     background:linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,.03) 55%, rgba(79,216,255,.10));
     -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
@@ -26,7 +33,8 @@
   #landing p { margin:0; font-size:13px; letter-spacing:2px; color:#7fdfff99; }
   body.responding #landing { opacity:0; }
   #miniLogo { position:absolute; top:14px; left:16px; z-index:10; display:none;
-    font-size:26px; font-weight:200; letter-spacing:.12em; color:#eafcff;
+    font-family:var(--font-display);
+    font-size:26px; font-weight:600; letter-spacing:.12em; color:#eafcff;
     text-shadow:0 0 12px #4fd8ff; }
   body.responding #miniLogo { display:block; }
   #miniRow { font-size:11px; color:#7fdfff; letter-spacing:1px; margin-top:2px; }
@@ -53,14 +61,17 @@
     overflow-y:auto; color:#c7f5ff; font-size:13px; background:rgba(10,20,30,0.72);
     border:1px solid #2fbfff55; border-radius:8px; padding:10px 14px; display:none; z-index:10;
   }
-  #infoRail h3 { margin:0 0 4px; font-size:14px; letter-spacing:1px; color:#4fd8ff; }
+  #infoRail h3 { margin:0 0 4px; font-size:14px; letter-spacing:1px; color:#4fd8ff; font-family:var(--font-display); }
   #infoRail .chip { display:inline-block; font-size:11px; border:1px solid #2fbfff88; border-radius:10px; padding:1px 8px; margin-bottom:6px; color:#9fe8ff; }
   #infoRail pre { white-space:pre-wrap; margin:6px 0 0; font-size:12px; color:#c7f5ff; }
   #textPanel {
-    position:absolute; bottom:64px; left:50%; transform:translateX(-50%); width:min(560px,92%;
-    ); max-height:150px;
-    overflow-y:auto; color:#c7f5ff; font-size:14px; background:rgba(10,20,30,0.82);
-    border:1px solid #2fbfff55; border-radius:8px; padding:10px 36px 10px 14px; display:none; z-index:11;
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:min(620px,90%); max-height:46%;
+    overflow-y:auto; color:#d8f6ff; font-size:15px; line-height:1.65; letter-spacing:.4px;
+    background:rgba(8,16,26,.88);
+    border:1px solid #2fbfff66; border-radius:12px; padding:16px 44px 16px 18px; display:none; z-index:11;
+    box-shadow:0 0 40px rgba(79,216,255,.15);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
   }
   #textClose {
     position:absolute; top:6px; right:10px; cursor:pointer; color:#7fdfff;
@@ -76,7 +87,8 @@
   }
   #inputBar input {
     flex:1; background:rgba(10,20,30,0.75); border:1px solid #2fbfff55; border-radius:8px;
-    color:#c7f5ff; font-size:14px; padding:10px 14px; outline:none;
+    color:#c7f5ff; font-size:14px; font-family:var(--font-body); letter-spacing:.4px;
+    padding:10px 14px; outline:none;
   }
   #inputBar input:focus-visible { border-color:#4fd8ff; box-shadow:0 0 0 2px #4fd8ff55; }
   #inputBar input::placeholder { color:#7fdfff66; }
@@ -95,8 +107,8 @@
   #vitals .bar { height:4px; background:#123a52; border-radius:2px; margin:2px 0 4px; overflow:hidden; }
   #vitals .bar i { display:block; height:100%; background:#4fd8ff; }
   #objLabel {
-    position:absolute; bottom:110px; left:0; right:0; text-align:center;
-    color:#4fd8ff; font-size:13px; letter-spacing:2px;
+    position:absolute; top:74px; left:0; right:0; text-align:center;
+    color:#4fd8ff; font-size:13px; letter-spacing:3px; font-family:var(--font-display);
     text-shadow:0 0 6px #4fd8ff; display:none; z-index:10; pointer-events:none;
   }
   #objSub { font-size:11px; letter-spacing:1px; color:#9fe8ff; }
@@ -136,7 +148,7 @@
   </div>
 </div>
 <div id="objLabel"></div>
-<div id="infoRail" aria-live="polite"><h3 id="railTitle">Object</h3><span class="chip" id="railType">3d</span><pre id="railBody"></pre></div>
+<div id="infoRail" aria-live="polite"><h3 id="railTitle">Object</h3><span class="chip" id="railType">3d</span></div>
 <div id="textPanel" aria-live="polite"><button id="textClose" title="Dismiss">✕</button><span id="textBody"></span></div>
 <div id="zoomBar"><button id="zoomIn" title="Zoom in">+</button><button id="zoomOut" title="Zoom out">−</button><button id="zoomReset" title="Reset view">⟡</button></div>
 <div id="inputBar">
@@ -529,15 +541,12 @@ function renderObject3D(payload) {
 }
 
 function showText(payload) {
+  // Single centered response: the right rail keeps telemetry only
+  // (title/type + headlines), never a copy of this text.
   const panel = document.getElementById('textPanel');
   panel.style.display = 'block';
   document.getElementById('textBody').textContent = payload.content;
   panel.scrollTop = 0;
-  const railBody = document.getElementById('railBody');
-  if (railBody) {
-    railBody.textContent = payload.content.slice(0, 2000);
-    document.getElementById('infoRail').style.display = 'block';
-  }
 }
 document.getElementById('textClose').addEventListener('click', () => {
   document.getElementById('textPanel').style.display = 'none';
