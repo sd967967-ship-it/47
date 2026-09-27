@@ -175,7 +175,12 @@ VOICE_CONTEXT = "voice"
 # 47 owns authorization and execution: Grok may REQUEST tools via the
 # provider's tool-plan, but the model never receives OS/network access and
 # its text is never executed as code. No local-model paths exist.
-from providers import grok as grok_provider
+from providers import get_active_provider
+
+
+UNAVAILABLE_MSG = ("47 is temporarily unavailable right now (no answer from the brain). "
+                   "Your files, tasks, reminders, system status, and dashboard "
+                   "still work - try again in a bit.")
 
 
 def ask_brain(user_text: str) -> str:
@@ -191,30 +196,35 @@ def ask_brain(user_text: str) -> str:
                          "content": content})
     messages.append({"role": "user", "content": user_text})
 
+    # One active brain (Groq when its key exists, else Grok, else none).
     # Structured tool use: plan first (max 2 calls), execute locally via
     # 47's own MCP client, then answer with the results as context.
     # Tool results are untrusted data, never instructions.
-    try:
-        tools = mcp_client.list_all_tools() if _needs_tools(user_text) else []
-        plan = grok_provider.request_tool_plan(user_text, tools) if tools else []
-        tool_notes = []
-        for call in plan[:2]:
-            name, args = call.get("name", ""), call.get("args", {})
-            if not isinstance(args, dict):
-                args = {}
-            print(f"[MCP] calling {name} with {vault_redacted(args)}")
-            try:
-                result = mcp_client.call_tool(name, args)
-            except Exception as e:
-                result = f"tool failed: {e}"
-            tool_notes.append(f"[untrusted tool output from {name}]\n{str(result)[:4000]}")
-        if tool_notes:
-            messages.append({"role": "user",
-                             "content": "Tool results to use in your answer:\n"
-                                        + "\n\n".join(tool_notes)})
-        reply = grok_provider.send_message(messages)
-    except grok_provider.GrokUnavailable:
-        reply = grok_provider.UNAVAILABLE
+    provider, _pname = get_active_provider()
+    if provider is None:
+        reply = UNAVAILABLE_MSG
+    else:
+        try:
+            tools = mcp_client.list_all_tools() if _needs_tools(user_text) else []
+            plan = provider.request_tool_plan(user_text, tools) if tools else []
+            tool_notes = []
+            for call in plan[:2]:
+                name, args = call.get("name", ""), call.get("args", {})
+                if not isinstance(args, dict):
+                    args = {}
+                print(f"[MCP] calling {name} with {vault_redacted(args)}")
+                try:
+                    result = mcp_client.call_tool(name, args)
+                except Exception as e:
+                    result = f"tool failed: {e}"
+                tool_notes.append(f"[untrusted tool output from {name}]\n{str(result)[:4000]}")
+            if tool_notes:
+                messages.append({"role": "user",
+                                 "content": "Tool results to use in your answer:\n"
+                                            + "\n\n".join(tool_notes)})
+            reply = provider.send_message(messages)
+        except Exception:
+            reply = UNAVAILABLE_MSG
 
     memory.log_turn("user", user_text)
     memory.log_turn("assistant", reply)
@@ -900,9 +910,8 @@ def voice_loop():
               f"use the text box on the dashboard instead.")
         return
 
-    import vault as _vault
-    has_key = bool(_vault.get("XAI_API_KEY"))
-    brain_label = "Grok" if has_key else "local mode (Grok brain unavailable)"
+    _provider, _pname = get_active_provider()
+    brain_label = _pname if _pname else "local mode (brain unavailable)"
     speak(f"47 online, running on {brain_label}. Say '{WAKE_WORD}' to talk to me.")
     while True:
         heard = listen()

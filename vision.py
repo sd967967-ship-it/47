@@ -102,11 +102,15 @@ def describe_screen(question: str = "What's on my screen right now?") -> str:
     except Exception as e:
         return f"Couldn't capture the screen: {e}"
     try:
-        from providers import grok as grok_provider
-        return grok_provider.send_vision(question, img_b64, "image/png")
+        from providers import get_active_provider
+        provider, _name = get_active_provider()
+        send_vision = getattr(provider, "send_vision", None) if provider else None
+        if send_vision is None:
+            raise RuntimeError("no vision provider")
+        return send_vision(question, img_b64, "image/png")
     except Exception:
-        return ("Screen understanding needs the Grok brain with a "
-                "vision-capable model — 47's vision is unavailable right now.")
+        return ("Screen understanding needs a vision-capable brain — "
+                "47's vision is unavailable right now.")
 
 
 # ---------- Layer 3: camera snapshot (on-demand only, never continuous) ----------
@@ -129,8 +133,12 @@ def describe_camera(question: str = "What do you see?") -> str:
     except Exception as e:
         return f"Couldn't access the camera: {e}"
     try:
-        from providers import grok as grok_provider
-        return grok_provider.send_vision(question, img_b64, "image/jpeg")
+        from providers import get_active_provider
+        provider, _name = get_active_provider()
+        send_vision = getattr(provider, "send_vision", None) if provider else None
+        if send_vision is None:
+            raise RuntimeError("no vision provider")
+        return send_vision(question, img_b64, "image/jpeg")
     except Exception:
-        return ("Camera understanding needs the Grok brain with a "
-                "vision-capable model — 47's vision is unavailable right now.")
+        return ("Camera understanding needs a vision-capable brain — "
+                "47's vision is unavailable right now.")

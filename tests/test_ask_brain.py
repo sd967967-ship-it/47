@@ -1,4 +1,4 @@
-"""Grok-only provider tests for 47 (no Ollama paths may remain active)."""
+"""Single-active-brain tests for 47 (Groq live today, Grok seam ready)."""
 import os
 import sys
 import types
@@ -47,53 +47,103 @@ if "mcp" not in sys.modules:
 os.environ["DASHBOARD_TOKEN"] = "test-token-for-suite"
 
 import main
+from providers import get_active_provider
+from providers import groq as groq_provider
 from providers import grok as grok_provider
 
 
-class TestGrokOnlyBrain(unittest.TestCase):
-    def test_no_ollama_attributes(self):
-        for attr in ("ask_ollama", "ask_groq", "BRAIN", "OLLAMA_URL",
-                     "OLLAMA_MODEL", "GROQ_API_KEY", "GROQ_MODEL"):
-            self.assertFalse(hasattr(main, attr), f"main.{attr} must not exist")
+class FakeProvider:
+    """Stand-in with the same seam (send_message/request_tool_plan)."""
+    def __init__(self, reply="fake answer", plan=None):
+        self._reply = reply
+        self._plan = plan or []
+        self.sent = []
 
-    def test_no_ollama_source_references(self):
-        import pathlib
-        src = pathlib.Path(main.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("localhost:11434", src)
-        self.assertNotIn("api.groq.com", src)
+    def request_tool_plan(self, user_text, tools):
+        return self._plan
 
-    def test_degraded_without_key(self):
-        with patch.object(grok_provider, "_key", return_value=""):
-            with patch.object(main.memory, "log_turn"):
-                reply = main.ask_brain("hello")
+    def send_message(self, messages):
+        self.sent = messages
+        return self._reply
+
+
+class TestProviderSelection(unittest.TestCase):
+    def test_no_keys_means_no_provider(self):
+        with patch("vault.get", return_value=""):
+            provider, name = get_active_provider()
+        self.assertIsNone(provider)
+        self.assertIsNone(name)
+
+    def test_groq_key_selects_groq(self):
+        with patch("vault.get", side_effect=lambda k: "x" if k == "GROQ_API_KEY" else ""):
+            provider, name = get_active_provider()
+        self.assertIs(provider, groq_provider)
+        self.assertEqual(name, "Groq")
+
+    def test_grok_key_selects_grok(self):
+        with patch("vault.get", side_effect=lambda k: "x" if k == "XAI_API_KEY" else ""):
+            provider, name = get_active_provider()
+        self.assertIs(provider, grok_provider)
+        self.assertEqual(name, "Grok")
+
+
+class TestAskBrain(unittest.TestCase):
+    def test_degraded_without_provider(self):
+        with patch.object(main, "get_active_provider", return_value=(None, None)), \
+             patch.object(main.memory, "log_turn"):
+            reply = main.ask_brain("hello")
         self.assertIn("temporarily unavailable", reply)
 
     def test_answer_flows_through(self):
-        fake_tools = [{"type": "function",
-                       "function": {"name": "fetch", "parameters": {}}}]
-        with patch.object(grok_provider, "send_message", return_value="hi there"), \
-             patch.object(grok_provider, "request_tool_plan", return_value=[]), \
-             patch.object(main.mcp_client, "list_all_tools", return_value=fake_tools), \
+        fake = FakeProvider("hi there")
+        with patch.object(main, "get_active_provider", return_value=(fake, "Fake")), \
              patch.object(main.memory, "log_turn"):
             reply = main.ask_brain("hello")
         self.assertEqual(reply, "hi there")
+        self.assertEqual(fake.sent[-1], {"role": "user", "content": "hello"})
 
     def test_tool_plan_executes_locally(self):
-        fake_tools = [{"type": "function",
-                       "function": {"name": "fetch", "parameters": {}}}]
-        plan = [{"name": "fetch", "args": {"url": "https://example.com"}}]
-        with patch.object(grok_provider, "send_message", return_value="done"), \
-             patch.object(grok_provider, "request_tool_plan", return_value=plan), \
-             patch.object(main.mcp_client, "list_all_tools", return_value=fake_tools), \
+        fake = FakeProvider("done", plan=[{"name": "fetch", "args": {"url": "https://example.com"}}])
+        tools = [{"type": "function", "function": {"name": "fetch", "parameters": {}}}]
+        with patch.object(main, "get_active_provider", return_value=(fake, "Fake")), \
+             patch.object(main.mcp_client, "list_all_tools", return_value=tools), \
              patch.object(main.mcp_client, "call_tool", return_value="page text") as mc, \
              patch.object(main.memory, "log_turn"):
             reply = main.ask_brain("fetch https://example.com please")
         self.assertEqual(reply, "done")
         mc.assert_called_once_with("fetch", {"url": "https://example.com"})
 
+    def test_provider_error_degrades(self):
+        class Boom(FakeProvider):
+            def send_message(self, messages):
+                raise groq_provider.GroqUnavailable("down")
 
-class TestVault(unittest.TestCase):
-    def test_redact(self):
+        with patch.object(main, "get_active_provider", return_value=(Boom(), "Fake")), \
+             patch.object(main.memory, "log_turn"):
+            reply = main.ask_brain("hello")
+        self.assertIn("temporarily unavailable", reply)
+
+
+class TestProviderUnits(unittest.TestCase):
+    def test_groq_validates_messages(self):
+        with self.assertRaises(ValueError):
+            groq_provider._validate_messages([])
+        with self.assertRaises(ValueError):
+            groq_provider._validate_messages([{"role": "assistant", "content": "x"}])
+
+    def test_groq_unavailable_without_key(self):
+        with patch("vault.get", return_value=""):
+            with self.assertRaises(groq_provider.GroqUnavailable):
+                groq_provider.send_message([{"role": "user", "content": "hi"}])
+            self.assertIn("missing", groq_provider.health_check())
+
+    def test_grok_unavailable_without_key(self):
+        with patch("vault.get", return_value=""):
+            with self.assertRaises(grok_provider.GrokUnavailable):
+                grok_provider.send_message([{"role": "user", "content": "hi"}])
+            self.assertIn("missing", grok_provider.health_check())
+
+    def test_vault_redact(self):
         import vault
         self.assertNotIn("xai-abc123XYZ", vault.redact("key xai-abc123XYZ here"))
         self.assertIn("<REDACTED>", vault.redact("key xai-abc123XYZ here"))
