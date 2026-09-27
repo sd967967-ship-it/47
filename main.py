@@ -557,7 +557,17 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         return
 
     if lowered.startswith("open ") or " open " in lowered:
+        import media as _media2
         target = lowered.split("open ", 1)[1]
+        if " play " in target:
+            # "open youtube play freaked out" -> open youtube, then play song.
+            site, _, song = target.partition(" play ")
+            speak(actions.open_app_or_site(site.strip() or "youtube"))
+            if song.strip():
+                report = _media2.play_youtube(song.strip())
+                speak(report)
+                push_to_dashboard("text", {"content": report})
+            return
         speak(actions.open_app_or_site(target))
         return
 
