@@ -76,7 +76,7 @@ def new_headlines(limit: int = 3) -> list:
     seen = set(state.get("seen", []))
     fresh = [h for h in get_world_headlines(limit * 2) if h not in seen][:limit]
     if fresh:
-        state["seen"] = (list(seen) | fresh)[-60:]
+        state["seen"] = sorted(seen | set(fresh))[-60:]
         _save_state(state)
     return fresh
 

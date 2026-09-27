@@ -76,6 +76,28 @@ class TestWatch(unittest.TestCase):
             except OSError:
                 pass
 
+    def test_new_headlines_marks_seen(self):
+        import json as _json
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        orig_state = watch.STATE_PATH
+        watch.STATE_PATH = Path(path)
+        watch._cache.update(at=0.0, headlines=[])
+        try:
+            with patch.object(watch, "get_world_headlines",
+                              return_value=["Alpha story", "Beta story"]):
+                fresh = watch.new_headlines(limit=2)
+            self.assertEqual(fresh, ["Alpha story", "Beta story"])
+            with patch.object(watch, "get_world_headlines",
+                              return_value=["Alpha story", "Beta story"]):
+                self.assertEqual(watch.new_headlines(limit=2), [])
+        finally:
+            watch.STATE_PATH = orig_state
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
 
 if __name__ == "__main__":
     unittest.main()
