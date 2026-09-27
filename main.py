@@ -628,9 +628,43 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         speak(f"Got it, I'll remember that {value}.")
         return
 
+    if lowered.startswith("open documents") or lowered.startswith("open my files"):
+        speak(actions.open_folder(os.path.join(os.path.expanduser("~"), "Documents")))
+        return
+
     if lowered.startswith("open ") or " open " in lowered:
         target = lowered.split("open ", 1)[1]
         speak(actions.open_app_or_site(target))
+        return
+
+    if lowered.startswith("start ") or lowered.startswith("launch "):
+        target = re.sub(r"^(start|launch)\s+", "", lowered).strip()
+        if not target:
+            speak("Tell me what to start.")
+            return
+        speak(actions.open_app_or_site(target))
+        return
+
+    if lowered.startswith("play ") or lowered.startswith("play song "):
+        import media as _media
+        query = re.sub(r"^play\s+(song\s+)?", "", lowered).strip()
+        report = _media.play_youtube(query)
+        speak(report)
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if lowered.startswith("youtube "):
+        import media as _media
+        report = _media.play_youtube(text[len("youtube "):].strip())
+        speak(report)
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if lowered.startswith("google "):
+        import media as _media
+        report = _media.google_search(text[len("google "):].strip())
+        speak(report)
+        push_to_dashboard("text", {"content": report})
         return
 
     if lowered.startswith("find file") or lowered.startswith("search for a file"):
