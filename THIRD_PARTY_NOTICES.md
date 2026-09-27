@@ -13,9 +13,11 @@ all of it runs locally.
 
 ## Adapted patterns (reimplemented, no code copied)
 
+- `safety.yaml` extensible confirm policy — the `confirm_before` idea from
+  JARVIS-6's `config.yaml` safety section (psycoks/Jarvis, no license file —
+  idea only, 47's parser/loader written from scratch).
 - Audit-trail idea (`audit.py`, local `audit_47.jsonl`) — inspired by
-  `core/audit.py` in psycoks/Jarvis (JARVIS-6). That repo ships **no license
-  file**, so its code was NOT copied; 47's module is written from scratch.
+  `core/audit.py` in psycoks/Jarvis (JARVIS-6).
 - Destructive/privileged tool flags (confirm gates in `shell.py`,
   `desktop.py`) — same inspiration source as above, reimplemented.
 - `duckduckgo-search` (DDGS) for real web results in `actions.web_search` —
