@@ -13,6 +13,20 @@ all of it runs locally.
 
 ## Adapted patterns (reimplemented, no code copied)
 
+- `publicdata.py` (currency/crypto/holidays/country over free no-key APIs)
+  — endpoint knowledge from bertrandmbanwi/Jarvis
+  `jarvis/tools/public_data.py` (**MIT**); rewritten synchronously on 47's
+  `request_with_retry`.
+- `planner.py` multi-step runner (sequence-marker heuristics before any LLM
+  call, steps through the normal command router) — heuristic idea from
+  bertrandmbanwi/Jarvis `jarvis/agent/planner.py` (**MIT**); 47's runner and
+  heuristics are its own code (no Claude/agents stack ported).
+- Pending-confirmation TTL (60s expiry) — the server-granted-confirmation
+  principle from bertrandmbanwi/Jarvis `jarvis/core/confirmation.py`
+  (**MIT**); implemented on 47's per-context pending store.
+
+## Adapted patterns (reimplemented, no code copied)
+
 - `safety.yaml` extensible confirm policy — the `confirm_before` idea from
   JARVIS-6's `config.yaml` safety section (psycoks/Jarvis, no license file —
   idea only, 47's parser/loader written from scratch).

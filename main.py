@@ -457,7 +457,6 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
     lowered = text.lower()
     if not text:
         return
-
     # ---- Confirmation gate for anything shell.py flagged as destructive.
     # Must be checked before anything else so "confirm" isn't swallowed by
     # a different branch, and so a pending destructive command can't be
@@ -485,6 +484,24 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
     # wrench look like" gets a visual even though it doesn't match any of
     # the hardcoded command branches below.
     maybe_show_3d(text)
+
+    # ---- Multi-step planner (bbjarvis planner heuristic, 47's own runner):
+    # "search X then open Y" runs as ordered steps through this same router,
+    # each keeping its confirm gates. Only fires on explicit sequence words.
+    import planner as _planner
+    if _planner.needs_plan(text):
+        steps = _planner.split_steps(text)
+        speak(f"That's {len(steps)} steps. Working through them in order.")
+        push_to_dashboard("text", {"content": "Plan:\n" + "\n".join(
+            f"{i + 1}. {s}" for i, s in enumerate(steps))})
+        for i, step in enumerate(steps):
+            push_to_dashboard("text", {"content": f"Step {i + 1}/{len(steps)}: {step}"})
+            handle_command(step, context_id=context_id)
+            if shell.has_pending(context_id):
+                speak("Paused — that step needs a 'confirm' before I continue.")
+                return
+        speak("All steps done.")
+        return
 
     # ---- Task review/cleanup (fix for "noisy passive detection with no
     # easy way to review/delete except touching the sqlite file directly").
@@ -708,6 +725,39 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
 
     if "send email" in lowered or "write an email" in lowered:
         speak("Email needs the Gmail API setup — see actions.py for steps.")
+        return
+
+    conv = re.match(r".*?convert\s+([\d.]+)\s+([a-z$]+)\s+to\s+([a-z$]+)", lowered)
+    if conv:
+        import publicdata as _pd
+        report = _pd.convert_currency(float(conv.group(1)), conv.group(2), conv.group(3))
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        return
+
+    crypto = re.match(r".*?(?:price of|how much is)\s+([a-z ]+?)[?.!]*$", lowered) or \
+        re.match(r".*?\b(bitcoin|btc|ethereum|eth|solana|sol|dogecoin|doge|ripple|xrp|bnb)\b.*?(price|worth|rate)", lowered)
+    if crypto:
+        import publicdata as _pd
+        asset = crypto.group(1).strip()
+        report = _pd.crypto_price(asset)
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if "holiday" in lowered:
+        import publicdata as _pd
+        place = lowered.split(" in ", 1)[-1].strip(" ?.") if " in " in lowered else "US"
+        report = _pd.next_holiday(place)
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if lowered.startswith("country info "):
+        import publicdata as _pd
+        report = _pd.country_info(text[len("country info "):].strip())
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
         return
 
     if lowered.startswith("research "):

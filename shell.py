@@ -128,20 +128,34 @@ _pending = {}
 _lock = threading.Lock()
 
 
+# Confirmations expire after 60s so a hours-later accidental "confirm"
+# can't fire a stale destructive command (and the confirm reply restates
+# the command — server-side grant, never model-supplied).
+_PENDING_TTL_S = 60
+
+
 def stage_for_confirmation(context_id: str, command: str, elevate: bool):
+    import time as _t
     with _lock:
-        _pending[context_id] = (command, elevate)
+        _pending[context_id] = (command, elevate, _t.time())
 
 
 def has_pending(context_id: str) -> bool:
+    import time as _t
     with _lock:
-        return context_id in _pending
+        item = _pending.get(context_id)
+        if not item:
+            return False
+        if _t.time() - item[2] > _PENDING_TTL_S:
+            _pending.pop(context_id, None)
+            return False
+        return True
 
 
 def pop_pending(context_id: str):
     with _lock:
-        cmd, elevate = _pending.pop(context_id, (None, False))
-    return cmd, elevate
+        item = _pending.pop(context_id, (None, False, 0.0))
+    return item[0], item[1]
 
 
 def run(command: str, elevate: bool = False, timeout: int = 60) -> str:
