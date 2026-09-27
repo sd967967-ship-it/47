@@ -16,6 +16,7 @@ mcp-server-fetch
 # fallback and works with no internet at all.
 edge-tts
 playsound==1.2.2
+duckduckgo-search
 
 # Optional, offline speech recognition (VOICE_RECOGNIZER=sphinx): avoids
 # streaming ambient audio to Google's cloud API, at the cost of noticeably

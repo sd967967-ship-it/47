@@ -16,7 +16,16 @@ def _gui():
     return pyautogui
 
 
+def _log(action: str, **fields):
+    try:
+        import audit as _audit
+        _audit.record(f"desktop.{action}", **fields)
+    except Exception:
+        pass
+
+
 def move_mouse(x: int, y: int) -> str:
+    _log("move_mouse", x=int(x), y=int(y))
     try:
         _gui().moveTo(int(x), int(y), duration=0.2)
         return f"Moved mouse to {x}, {y}."
@@ -25,6 +34,7 @@ def move_mouse(x: int, y: int) -> str:
 
 
 def click(button: str = "left") -> str:
+    _log("click", button=button)
     try:
         _gui().click(button=button)
         return f"Clicked {button}."
@@ -37,6 +47,7 @@ def type_text(text: str, confirm_token: str = "") -> str:
     low = text.strip().lower()
     if low in RISKY_KEYS and confirm_token.strip().lower() != "confirm":
         return f"That key ({text}) needs a 'confirm' before I press it."
+    _log("type_text", chars=len(text))
     try:
         _gui().typewrite(text, interval=0.02)
         return "Typed it."

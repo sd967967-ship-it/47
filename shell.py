@@ -98,6 +98,11 @@ def pop_pending(context_id: str):
 def run(command: str, elevate: bool = False, timeout: int = 60) -> str:
     """Runs `command` in the real OS shell (cmd.exe / sh) and returns
     combined stdout+stderr, truncated for speech/dashboard display."""
+    try:
+        import audit as _audit
+        _audit.record("shell.run", command=command[:300], elevate=elevate)
+    except Exception:
+        pass
     system = platform.system()
     try:
         if elevate:

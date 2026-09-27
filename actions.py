@@ -178,8 +178,20 @@ def get_weather(place: str) -> str:
         return f"Couldn't fetch the weather: {e}"
 
 
-# ---------- Web search (free, no API key: DuckDuckGo instant answers) ----------
+# ---------- Web search (free, no API key: DuckDuckGo) ----------
 def web_search(query: str):
+    # Real results via duckduckgo-search (DDGS) when installed — same library
+    # JARVIS-6's tool registry uses. Falls back to the instant-answers API.
+    try:
+        from duckduckgo_search import DDGS
+        with DDGS() as d:
+            hits = list(d.text(query, max_results=5))
+        results = [{"title": f"{h.get('title', '')}: {h.get('body', '')[:150]}",
+                    "url": h.get("href", "")} for h in hits]
+        if results:
+            return results
+    except Exception:
+        pass
     url = f"https://api.duckduckgo.com/?q={quote_plus(query)}&format=json&no_html=1"
     try:
         r = request_with_retry("GET", url, timeout=10).json()
@@ -329,6 +341,54 @@ def list_windows(max_entries: int = 20) -> str:
         return "Open windows:\n" + ("\n".join(f"- {t[:80]}" for t in titles) if titles else "(none)")
     except Exception as e:
         return f"Couldn't list windows: {e}"
+
+
+def recent_files(folder: str = "", count: int = 10) -> str:
+    """List recently modified files (JARVIS-6 files.recent idea, reimplemented
+    on 47's sandboxed resolver)."""
+    try:
+        target = _safe_resolve(folder or str(Path.home() / "Downloads"))
+        if not target.is_dir():
+            return f"No folder at {folder or target}."
+        items = []
+        for child in target.iterdir():
+            try:
+                items.append((child.stat().st_mtime, child.name))
+            except OSError:
+                continue
+        items.sort(reverse=True)
+        lines = [name for _, name in items[:max(1, min(count, 30))]]
+        return f"Recent in {target}:\n" + ("\n".join(f"- {n}" for n in lines) if lines else "(empty)")
+    except Exception as e:
+        return f"Couldn't list recent files: {e}"
+
+
+def top_processes(count: int = 8) -> str:
+    """Heaviest processes by memory (JARVIS-6 system.processes idea). Local only."""
+    try:
+        import psutil
+        procs = sorted(psutil.process_iter(["name", "memory_info"]),
+                       key=lambda p: (p.info.get("memory_info").rss
+                                      if p.info.get("memory_info") else 0),
+                       reverse=True)[:max(1, min(count, 15))]
+        lines = [f"{p.info['name'] or '?'} "
+                 f"{(p.info['memory_info'].rss / 1e6 if p.info.get('memory_info') else 0):.0f} MB"
+                 for p in procs]
+        return "Top processes by memory:\n" + "\n".join(f"- {l}" for l in lines)
+    except Exception as e:
+        return f"Couldn't list processes: {e}"
+
+
+def lock_workstation() -> str:
+    """Lock the PC now (safe, reversible — same call JARVIS-6's system.power uses)."""
+    try:
+        if platform.system() == "Windows":
+            import ctypes
+            ctypes.windll.user32.LockWorkStation()
+            return "Workstation locked."
+        return "Lock is currently supported on Windows only."
+    except Exception as e:
+        return f"Couldn't lock: {e}"
 
 
 # ---------- System controls (volume) ----------

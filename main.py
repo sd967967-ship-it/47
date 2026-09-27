@@ -710,6 +710,49 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         speak("Email needs the Gmail API setup — see actions.py for steps.")
         return
 
+    if lowered.startswith("research "):
+        topic = text[len("research "):].strip() or "general knowledge"
+        import prompts as _prompts
+        guide = _prompts.research_guide()
+        results = actions.web_search(topic)
+        brief = "\n".join(f"- {r['title']} ({r['url']})" for r in results[:5])
+        summary_prompt = (f"Research this topic and answer with these sections:\n{guide}\n\n"
+                          f"Topic: {topic}\n\nWeb results:\n{brief}")
+        reply = ask_brain(summary_prompt)
+        speak(reply[:280])
+        push_to_dashboard("text", {"content": reply})
+        return
+
+    if "lock" in lowered and ("pc" in lowered or "computer" in lowered or "workstation" in lowered):
+        speak(actions.lock_workstation())
+        return
+
+    if "recent files" in lowered or "recent downloads" in lowered:
+        report = actions.recent_files()
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if "top processes" in lowered or "heaviest processes" in lowered:
+        report = actions.top_processes()
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if "audit log" in lowered or "show audit" in lowered:
+        import audit as _audit
+        entries = _audit.read(limit=20)
+        if not entries:
+            speak("The audit log is empty.")
+        else:
+            import time as _t
+            lines = [f"{_t.strftime('%m-%d %H:%M', _t.localtime(e['ts']))} {e['event']}"
+                     for e in entries[-10:]]
+            report = "Recent audit entries:\n" + "\n".join(lines)
+            speak(report[:280])
+            push_to_dashboard("text", {"content": report})
+        return
+
     if lowered.startswith("browse ") or lowered.startswith("automate page "):
         url = actions.find_url(text) or text.split(" ", 1)[-1].strip()
         try:
