@@ -316,12 +316,17 @@ def maybe_show_3d(text: str):
     """Always-3D policy for 47: named categories render their parametric
     scene; ask/show/model/render questions fall back to a labeled generic
     object; anything else gets the 47 emblem core — so the dashboard always
-    shows a 3D scene, never just charts. Text answers always go to the 2D
-    panel alongside — never 3D-only."""
+    shows a 3D scene, never just charts. When the model library holds a
+    real .glb for the request, it is pushed too (dashboard shows the model).
+    Text answers always go to the 2D panel alongside — never 3D-only."""
+    import models3d
     category = visual3d.classify_or_generic(text) or "emblem"
     kind, payload = visual3d.build_payload(category, text)
     if kind:
         push_to_dashboard(kind, payload)
+    real = models3d.resolve(text, category if category != "emblem" else None)
+    if real:
+        push_to_dashboard("model3d", {"file": real, "label": text.strip()[:60]})
 
 
 # ---------- Command router ----------
@@ -677,6 +682,20 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         })
         return
 
+    if lowered.startswith("make 3d of ") or lowered.startswith("make a 3d of "):
+        import models3d
+        subject = re.sub(r"^make (a )?3d of ", "", lowered).strip(" ?.")
+        found = models3d.resolve(subject)
+        if found:
+            speak(f"Loading the {found} model for {subject}. Drag to rotate, scroll to zoom.")
+            push_to_dashboard("model3d", {"file": found, "label": subject[:60]})
+            push_to_dashboard("text", {"content": f"Real 3D model: {found} (CC0 library)."})
+        else:
+            speak(f"No library model for {subject} yet — showing the parametric scene instead.")
+            push_to_dashboard("object3d", {"type": "generic_object",
+                                           "label": subject[:60] or "Object"})
+        return
+
     if "send email" in lowered or "write an email" in lowered:
         speak("Email needs the Gmail API setup — see actions.py for steps.")
         return
@@ -689,8 +708,7 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         push_to_dashboard("text", {"content": report})
         return
 
-    if "tomorrow" in lowered and ("routine" in lowered or "agenda" in lowered
-                                  or "schedule" in lowered or "plan" in lowered
+    if "tomorrow" in lowered and ("routine" in lowered or "agenda" in lowered                                  or "schedule" in lowered or "plan" in lowered
                                   or "what" in lowered or "my day" in lowered):
         import watch as _watch
         report = _watch.agenda_text()
@@ -707,7 +725,8 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         speak(report[:280])
         push_to_dashboard("text", {"content": report})
         push_to_dashboard("briefing", {"headlines": heads,
-                                       "tasks_open": len(memory.list_open_tasks())})
+                                       "tasks_open": len(memory.list_open_tasks()),
+                                       "memstats": memory.memory_stats()})
         return
 
     conv = re.match(r".*?convert\s+([\d.]+)\s+([a-z$]+)\s+to\s+([a-z$]+)", lowered)
@@ -860,6 +879,14 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
 
     push_to_dashboard("text", {"content": "47 is thinking…"})
     reply = ask_brain(text)
+    import persona as _persona2
+    global _chat_count
+    try:
+        _chat_count += 1
+    except NameError:
+        _chat_count = 1
+    if _chat_count % 3 == 0 and len(reply) < 1500:
+        reply = reply + "\n\n" + _persona2.followup()
     push_to_dashboard("text", {"content": reply})
     speak(reply[:280])
 
@@ -912,6 +939,8 @@ def voice_loop():
 
     _provider, _pname = get_active_provider()
     brain_label = _pname if _pname else "local mode (brain unavailable)"
+    import persona as _persona
+    speak(f"47 online, running on {brain_label}. {_persona.greeting()} Say '{WAKE_WORD}' to talk to me.")
     speak(f"47 online, running on {brain_label}. Say '{WAKE_WORD}' to talk to me.")
     while True:
         heard = listen()
@@ -957,9 +986,12 @@ def start_proactive():
             heads = _watch.get_world_headlines(limit=5)
             try:
                 open_n = len(memory.list_open_tasks())
+                memstats = memory.memory_stats()
             except Exception:
                 open_n = 0
-            push_to_dashboard("briefing", {"headlines": heads, "tasks_open": open_n})
+                memstats = {}
+            push_to_dashboard("briefing", {"headlines": heads, "tasks_open": open_n,
+                                           "memstats": memstats})
             if fresh and _watch.is_daytime():
                 speak(f"Update: {fresh[0]}")
         except Exception as e:
@@ -1003,6 +1035,21 @@ def dashboard():
         abort(403, description="Missing or invalid dashboard token. Use the URL "
                                 "printed in the console when 47 started.")
     return render_template("dashboard.html")
+
+
+@app.route("/models/<name>")
+def serve_model(name: str):
+    """Token-gated .glb library for the dashboard's GLTFLoader. Allowlist
+    only (models3d.allowed_files) — no paths, no traversal, no listing."""
+    from flask import send_file
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    import models3d
+    path = models3d.model_path(name)
+    if not path:
+        abort(404)
+    return send_file(str(path), mimetype="model/gltf-binary",
+                     max_age=86400)
 
 
 # FEATURE: typed data-entry channel. You can type anything the dashboard's

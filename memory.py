@@ -139,6 +139,25 @@ def fact_count() -> int:
     return n
 
 
+def memory_stats() -> dict:
+    """Real learning counters for the dashboard: facts kept, tasks open /
+    done, conversation turns logged, DB size. All local, all factual."""
+    import os
+    conn = _connect()
+    _ensure_tasks_table(conn)
+    facts = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+    open_n = conn.execute("SELECT COUNT(*) FROM tasks WHERE status='open'").fetchone()[0]
+    done_n = conn.execute("SELECT COUNT(*) FROM tasks WHERE status='done'").fetchone()[0]
+    turns = conn.execute("SELECT COUNT(*) FROM conversation").fetchone()[0]
+    conn.close()
+    try:
+        kb = round(os.path.getsize(DB_PATH) / 1024, 1)
+    except OSError:
+        kb = 0.0
+    return {"facts": facts, "tasks_open": open_n, "tasks_done": done_n,
+            "turns": turns, "db_kb": kb}
+
+
 def forget_fact(key: str) -> bool:
     conn = _connect()
     cur = conn.execute("DELETE FROM facts WHERE key = ?", (key,))

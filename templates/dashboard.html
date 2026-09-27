@@ -46,6 +46,15 @@
     backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
   }
   body.responding #sidePanel { display:block; }
+  #leftPanel {
+    position:absolute; top:120px; left:16px; width:250px; max-height:62%;
+    overflow-y:auto; z-index:10;
+    background:rgba(10,20,30,.72); border:1px solid #2fbfff55; border-radius:12px;
+    padding:12px 14px; color:#c7f5ff;
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  }
+  #leftPanel .sideSec { margin-top:0; }
+  #l-procs div, #l-drives div { margin:2px 0; }
   #s-clock { font-size:30px; font-weight:200; letter-spacing:2px; color:#eafcff; }
   #s-date { font-size:12px; color:#7fdfff; letter-spacing:1px; margin-bottom:8px; }
   .sideSec { font-size:11px; letter-spacing:2px; color:#4fd8ff; margin:10px 0 4px;
@@ -77,6 +86,10 @@
     position:absolute; top:6px; right:10px; cursor:pointer; color:#7fdfff;
     font-size:14px; border:none; background:none; z-index:12;
   }
+  #textBody .msg { margin:10px 0; padding:8px 12px; border-left:2px solid #2fbfff55;
+    word-wrap:break-word; }
+  #textBody .msg.user { border-color:#ff8a4f88; color:#9fe8ff; }
+  #textBody .msg:first-child { margin-top:0; }
   #imgStrip { display:none; gap:10px; justify-content:center; margin-bottom:10px; flex-wrap:wrap; }
   #imgStrip img { max-height:150px; max-width:32%; border-radius:8px;
     border:1px solid #2fbfff66; object-fit:cover; }
@@ -130,6 +143,16 @@
   <p id="landingSub">SAY "HI 47" OR TYPE BELOW</p>
 </div>
 <div id="miniLogo">47<div id="miniRow"><span id="liveDot"></span> <span>LIVE</span> <span>FPS <span id="hudFps">--</span></span> <span id="hudObj">OBJ:47</span></div></div>
+<div id="leftPanel" aria-live="polite">
+  <div class="sideSec" style="margin-top:0">LAPTOP LIVE</div>
+  <div id="l-sys" style="font-size:12px">--</div>
+  <div class="sideSec">PROCESSES</div>
+  <div id="l-procs" style="font-size:12px">--</div>
+  <div class="sideSec">DRIVES</div>
+  <div id="l-drives" style="font-size:12px">--</div>
+  <div class="sideSec">LEARNING</div>
+  <div id="l-learn" style="font-size:12px">--</div>
+</div>
 <div id="sidePanel" aria-live="polite">
   <div id="s-clock">--:--</div>
   <div id="s-date">--</div>
@@ -160,6 +183,8 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"}}</script>
+<script type="module">import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'; window.GLTFLoader = GLTFLoader;</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 <script>
 // ---------- Three.js scene setup ----------
@@ -530,6 +555,33 @@ function renderEmblem(payload) {
   });
 }
 
+let modelLoader = null;
+function renderModel(payload) {
+  clearGroup();
+  autoRotate = false;
+  labelObject(payload.label || '3D model', 'real model · drag to rotate, scroll to zoom');
+  if (!window.GLTFLoader) { renderGeneric(payload); return; }
+  try {
+    if (!modelLoader) modelLoader = new window.GLTFLoader();
+  } catch (e) { renderGeneric(payload); return; }
+  const token = new URLSearchParams(window.location.search).get('token') || '';
+  modelLoader.load('/models/' + payload.file + '?token=' + encodeURIComponent(token),
+    (gltf) => {
+      try {
+        const obj = gltf.scene;
+        const box = new THREE.Box3().setFromObject(obj);
+        const size = box.getSize(new THREE.Vector3()).length() || 1;
+        const s = 5 / size;
+        const center = box.getCenter(new THREE.Vector3());
+        obj.position.set(-center.x * s, -center.y * s + 1, -center.z * s);
+        obj.scale.setScalar(s);
+        dataGroup.add(obj);
+      } catch (e) { renderGeneric(payload); }
+    },
+    undefined,
+    () => renderGeneric(payload));
+}
+
 function renderObject3D(payload) {
   const type = payload.type;
   if (type === 'building') renderBuilding(payload);
@@ -544,11 +596,16 @@ function renderObject3D(payload) {
 }
 
 function showText(payload) {
-  // Single centered response: photos (if any) on top, text below.
-  // The right rail keeps telemetry only, never a copy of this text.
+  // Conversation history: append, never overwrite (cap 60 blocks).
   const panel = document.getElementById('textPanel');
   panel.style.display = 'block';
-  document.getElementById('textBody').textContent = payload.content || '';
+  const body = document.getElementById('textBody');
+  const txt = payload.content || '';
+  const div = document.createElement('div');
+  div.className = 'msg' + (txt.startsWith('You typed:') ? ' user' : '');
+  div.textContent = txt;
+  body.appendChild(div);
+  while (body.children.length > 60) body.removeChild(body.firstChild);
   const strip = document.getElementById('imgStrip');
   strip.innerHTML = '';
   const imgs = payload.images || [];
@@ -559,7 +616,7 @@ function showText(payload) {
     strip.appendChild(im);
   });
   strip.style.display = imgs.length ? 'flex' : 'none';
-  panel.scrollTop = 0;
+  panel.scrollTop = panel.scrollHeight;
 }
 document.getElementById('textClose').addEventListener('click', () => {
   document.getElementById('textPanel').style.display = 'none';
@@ -579,6 +636,35 @@ function updateVitals(v) {
     const t = document.getElementById('s-tasks');
     if (t) t.textContent = `${v.tasks_open} open`;
   }
+  const ls = document.getElementById('l-sys');
+  if (ls) {
+    const cores = (v.cpu_per_core || []).length;
+    const up = v.uptime_s ? `${Math.floor(v.uptime_s / 3600)}h${Math.floor(v.uptime_s % 3600 / 60)}m` : '--';
+    ls.textContent = `CPU ${v.cpu_percent}%${cores ? ` (${cores}c)` : ''} · RAM ${v.ram_percent}% · up ${up} · net ↓${v.net_recv_mb || 0}MB ↑${v.net_sent_mb || 0}MB`;
+  }
+  const lp = document.getElementById('l-procs');
+  if (lp && v.top_procs) {
+    lp.innerHTML = '';
+    v.top_procs.slice(0, 5).forEach((p) => {
+      const d = document.createElement('div');
+      d.textContent = `${(p.name || '?').slice(0, 22)} ${(p.cpu_percent || 0).toFixed(0)}%`;
+      lp.appendChild(d);
+    });
+  }
+  const ld = document.getElementById('l-drives');
+  if (ld && v.drives) {
+    ld.innerHTML = '';
+    v.drives.slice(0, 4).forEach((d) => {
+      const el = document.createElement('div');
+      el.textContent = `${d.mount} ${d.free_gb}G free`;
+      ld.appendChild(el);
+    });
+  }
+  const learn = (ms) => {
+    const el = document.getElementById('l-learn');
+    if (el && ms) el.textContent = `${ms.facts || 0} facts · ${ms.tasks_done || 0} done · ${ms.turns || 0} turns · ${ms.db_kb || 0}KB`;
+  };
+  learn(v.memstats);
 }
 
 function enterResponseMode() {
@@ -627,6 +713,11 @@ socket.on('data_47', (msg) => {
     if (msg.payload.tasks_open !== undefined) {
       document.getElementById('s-tasks').textContent = `${msg.payload.tasks_open} open`;
     }
+    const ms = msg.payload.memstats;
+    if (ms) {
+      const el = document.getElementById('l-learn');
+      if (el) el.textContent = `${ms.facts || 0} facts · ${ms.tasks_done || 0} done · ${ms.turns || 0} turns · ${ms.db_kb || 0}KB`;
+    }
     return;
   }
   if (msg.kind === 'text') { enterResponseMode(); showText(msg.payload); return; }
@@ -634,6 +725,7 @@ socket.on('data_47', (msg) => {
   enterResponseMode();
   if (msg.kind === 'bars') renderBars(msg.payload);
   else if (msg.kind === 'network') renderNetwork(msg.payload);
+  else if (msg.kind === 'model3d') renderModel(msg.payload);
   else if (msg.kind === 'object3d') renderObject3D(msg.payload);
 });
 

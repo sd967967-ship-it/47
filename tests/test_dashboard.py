@@ -50,8 +50,12 @@ class TestDashboardScript(unittest.TestCase):
         script = _inline_script()
         for token in ("function sendTyped", "user_text_command",
                       "function renderEmblem", "enterResponseMode",
-                      "emblemRings", "textClose"):
+                      "emblemRings", "textClose", "function renderModel",
+                      "GLTFLoader", "l-learn"):
             self.assertIn(token, script, f"missing {token}")
+        markup = HTML.read_text(encoding="utf-8")
+        for token in ("leftPanel", "imgStrip", "sidePanel"):
+            self.assertIn(f'id="{token}"', markup, f"missing #{token}")
 
     def test_single_centered_response(self):
         # Exactly one response surface: no mirror of the reply text into
