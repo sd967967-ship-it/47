@@ -1,0 +1,47 @@
+import { GigiAvatar } from "./GigiAvatar";
+import { cn } from "@/lib/utils";
+
+import { AgentSymbol, SymbolThinkingDots } from "./AgentSymbol";
+import { resolveCompanion } from "./companion/appearance";
+import type { SocietyAgent } from "./data";
+
+type SwatchAgent = Pick<SocietyAgent, "figure" | "palette" | "name"> &
+  Partial<Pick<SocietyAgent, "agentId" | "tier" | "state">>;
+
+/** Lightweight vector identity shared by roster, profile and message surfaces. */
+export function AgentSwatch({
+  agent,
+  size = 36,
+  className,
+}: {
+  agent: SwatchAgent;
+  size?: number;
+  className?: string;
+}) {
+  // Older internal-message participants carry the figure but not the tier.
+  const isJarvis = agent.tier === "lead" || (
+    !agent.tier && agent.figure?.archetype === "spirit" && agent.figure.base === "gigi"
+  );
+  // Real roster identities survive renames. Name-only historical participants
+  // still get a deterministic symbol without fetching a roster or a 3D model.
+  const appearance = resolveCompanion(agent.agentId || agent.name, agent.figure?.companion);
+  const thinking = agent.state === "working";
+
+  return (
+    <span
+      aria-hidden
+      className={cn("relative inline-flex shrink-0 items-center justify-center select-none", isJarvis && "society-agent-symbol", className)}
+      data-thinking={isJarvis && thinking ? "true" : undefined}
+      style={{ width: size, height: size }}
+    >
+      {isJarvis ? (
+        <>
+        <GigiAvatar size={size} />
+        {thinking && <svg aria-hidden viewBox="0 0 40 44" className="pointer-events-none absolute inset-0 h-full w-full"><SymbolThinkingDots color="#ffcf45" /></svg>}
+        </>
+      ) : (
+        <AgentSymbol {...appearance} size={size} thinking={thinking} />
+      )}
+    </span>
+  );
+}

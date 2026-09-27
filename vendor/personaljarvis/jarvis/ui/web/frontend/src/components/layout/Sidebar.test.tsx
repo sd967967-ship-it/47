@@ -1,0 +1,677 @@
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
+import {
+  Sidebar,
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_RAIL_AT_WIDTH,
+  SIDEBAR_RAIL_WIDTH,
+} from "@/components/layout/Sidebar";
+import { NAV_GROUPS, NAV_FOOTER_ITEMS, SETTINGS_HUB_IDS } from "@/components/layout/navGroups";
+import { isSectionId, useEventStore } from "@/store/events";
+import { useHomeStore } from "@/store/home";
+import { useIdeChatStore } from "@/store/ideChat";
+
+// The sidebar header avatar must mirror the chosen on-screen display style:
+// the ghost mascot ONLY when the user explicitly picked "mascot"; the slim bar
+// for "jarvis_bar"/"none" and while the style is still loading (config null).
+// Mock the overlay-style hook so the test controls the style without a fetch.
+const overlayMock = vi.hoisted(() => ({ style: "jarvis_bar" as string | null }));
+vi.mock("@/hooks/useOverlayStyle", () => ({
+  useOverlayStyle: () => ({
+    config: overlayMock.style
+      ? { style: overlayMock.style, options: ["jarvis_bar", "mascot", "none"] }
+      : null,
+    loading: false,
+    error: null,
+    refetch: () => {},
+    saveStyle: () => {},
+  }),
+}));
+
+// usePluginAttention polls /api/marketplace/plugins; mock it so the sidebar's
+// plugin reconnect dot is driven by the test, not a fetch.
+const pluginAttentionMock = vi.hoisted(() => ({ needsReconnect: false }));
+vi.mock("@/hooks/usePluginAttention", () => ({
+  usePluginAttention: () =>
+    pluginAttentionMock.needsReconnect
+      ? { count: 1, names: ["Cloudflare"] }
+      : { count: 0, names: [] },
+}));
+
+// useVoiceMode fetches /api/settings/voice-mode; mock it so the footer card's
+// pipeline-vs-realtime split is driven by the test, not a fetch. The default
+// mirrors a fresh pipeline install (the pre-existing footer tests rely on it).
+const voiceModeMock = vi.hoisted(() => ({
+  value: {
+    mode: "pipeline",
+    activeProvider: null as string | null,
+    activeProviderLabel: null as string | null,
+    activeModel: null as string | null,
+    sessionActive: false,
+    activeSessionMode: null as "pipeline" | "realtime" | null,
+    activeSessionProvider: "",
+    activeSessionModel: "",
+  },
+}));
+vi.mock("@/hooks/useVoiceMode", () => ({
+  useVoiceMode: () => voiceModeMock.value,
+}));
+
+function renderSidebar(width?: number) {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <Sidebar width={width} />
+    </QueryClientProvider>,
+  );
+}
+
+describe("Sidebar voice header", () => {
+  beforeEach(() => {
+    useEventStore.setState({
+      voiceState: "idle",
+      transcription: "",
+      transcriptionFinal: true,
+      connected: true,
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  test("does not render the floating mascot bubble while listening", () => {
+    // The mascot's listening speech-bubble is anchored to the left of the
+    // mascot (right: calc(100% + 10px)). In the sidebar the mascot sits flush
+    // against the window edge, so the bubble slides off-screen and only its
+    // yellow border + glow bleed back in — the spurious "yellow frame" the
+    // user reported. The sidebar must not render that bubble.
+    useEventStore.setState({
+      voiceState: "listening",
+      transcription: "auflegen",
+      transcriptionFinal: false,
+    });
+
+    const { container } = renderSidebar();
+
+    expect(container.querySelector(".gigi-bubble-listening")).toBeNull();
+    expect(container.querySelector(".gigi-bubble")).toBeNull();
+  });
+
+  test("no longer shows the live transcription — that lane moved to the voice stage", () => {
+    // Since 2026-08-23 the transcript is read on the front page itself
+    // (components/home/VoiceStage), where it has the room to be read; the
+    // sidebar box would be a second, cramped copy of the same words.
+    useEventStore.setState({
+      voiceState: "listening",
+      transcription: "auflegen",
+      transcriptionFinal: false,
+    });
+
+    renderSidebar();
+
+    expect(screen.queryByText("auflegen")).toBeNull();
+  });
+
+  test("starts with New chat without duplicate voice controls", () => {
+    renderSidebar();
+    expect(screen.queryByTestId("home-surface-switch")).toBeNull();
+    expect(screen.getByTestId("sidebar-new-chat")).toBeTruthy();
+  });
+});
+
+// New chat must let users choose either surface without changing the current
+// conversation until they make a choice.
+describe("Sidebar new-conversation button", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      // GET /api/chats answers with a list, the agent-chat sessions probe with
+      // an empty roster; every other call the mounted sidebar fires gets a
+      // harmless object. An undefined list here crashes the recent-chats block.
+      vi.fn(async (url: string) =>
+        String(url).startsWith("/api/chats")
+          ? new Response(JSON.stringify([]), { status: 200 })
+          : new Response(JSON.stringify({ sessions: [] }), { status: 200 }),
+      ),
+    );
+    useEventStore.setState({
+      connected: true,
+      activeSection: "board",
+      conversations: [],
+      messages: [],
+      activeThreadId: "old-voice-thread",
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    // The event store is module-global: leaving a fetched-in list behind
+    // would break whichever test file runs next.
+    useEventStore.setState({ conversations: [], messages: [], activeThreadId: null });
+  });
+
+  test("offers both kinds and opens typed chat from the voice stage", async () => {
+    useHomeStore.setState({ surface: "voice", transcript: [] });
+    renderSidebar();
+    const button = screen.getByTestId("sidebar-new-chat");
+    expect(button.textContent).toContain("New chat");
+    await act(async () => { button.click(); await Promise.resolve(); });
+    expect(useHomeStore.getState().surface).toBe("voice");
+    expect(useEventStore.getState().activeThreadId).toBe("old-voice-thread");
+    expect(screen.getByTestId("new-voice-chat")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("new-text-chat"));
+    expect(useHomeStore.getState().surface).toBe("chat");
+    expect(useEventStore.getState().activeSection).toBe("chats");
+  });
+
+  test("on the chat surface it still opens an empty chat", async () => {
+    useHomeStore.setState({ surface: "chat", transcript: [] });
+
+    renderSidebar();
+    const button = screen.getByTestId("sidebar-new-chat");
+    expect(button.textContent).toContain("New chat");
+    expect(button.textContent).not.toContain("voice");
+
+    await act(async () => {
+      button.click();
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByTestId("new-text-chat"));
+
+    expect(useHomeStore.getState().surface).toBe("chat");
+    const calls = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(calls.some((c) => String(c[0]) === "/api/chats/voice/new")).toBe(false);
+  });
+
+  test("opens a fresh voice chat from the chat surface", async () => {
+    useHomeStore.setState({ surface: "chat", transcript: [], liveReply: "Previous reply" });
+    renderSidebar();
+    fireEvent.click(screen.getByTestId("sidebar-new-chat"));
+    await act(async () => { fireEvent.click(screen.getByTestId("new-voice-chat")); });
+    expect(fetch).toHaveBeenCalledWith("/api/chats/voice/new", { method: "POST" });
+    expect(useHomeStore.getState().surface).toBe("voice");
+    expect(useHomeStore.getState().liveReply).toBe("");
+    expect(useEventStore.getState().activeSection).toBe("chats");
+    expect(useEventStore.getState().activeKind).toBe("voice");
+    expect(useEventStore.getState().activeThreadId).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("keeps the current conversation if creating a voice chat fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+      String(url) === "/api/chats/voice/new"
+        ? new Response("", { status: 503 })
+        : new Response(JSON.stringify([]), { status: 200 }),
+    ));
+    useHomeStore.setState({ surface: "chat", transcript: [] });
+    renderSidebar();
+    fireEvent.click(screen.getByTestId("sidebar-new-chat"));
+    await act(async () => { fireEvent.click(screen.getByTestId("new-voice-chat")); });
+    expect(useHomeStore.getState().surface).toBe("chat");
+    expect(useEventStore.getState().activeThreadId).toBe("old-voice-thread");
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+});
+
+describe("Sidebar header avatar", () => {
+  beforeEach(() => {
+    useEventStore.setState({
+      voiceState: "idle",
+      transcription: "",
+      transcriptionFinal: true,
+      connected: true,
+      voiceReady: true,
+      assistantName: "Ruben",
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    overlayMock.style = "jarvis_bar";
+  });
+
+  // The mark is a bundled import, so its URL carries a build hash and there is
+  // nothing stable to assert. What matters is that the avatar shows the mark
+  // and not a stale public/ path a browser would serve from cache.
+  test("renders the Gigi app mark from the bundle, not a public path", () => {
+    const { container } = renderSidebar();
+    const avatar = container.querySelector('[data-testid="sidebar-style-avatar"]');
+    expect(avatar).not.toBeNull();
+    expect(avatar?.getAttribute("data-variant")).toBe("logo");
+    const logo = avatar?.querySelector("img") as HTMLImageElement;
+    const src = logo.getAttribute("src") ?? "";
+    expect(src).toContain("jarvis-mark");
+    expect(src.startsWith("/jarvis-")).toBe(false);
+  });
+});
+
+describe("Sidebar settings-hub entry", () => {
+  beforeEach(() => {
+    useEventStore.setState({
+      voiceState: "idle",
+      transcription: "",
+      transcriptionFinal: true,
+      connected: true,
+      voiceReady: true,
+      activeSection: "chats",
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  test("the profile button opens the hub on the Profile tab", () => {
+    // The popup is gone: one click lands in the Settings hub, on Profile.
+    renderSidebar();
+
+    fireEvent.click(screen.getByTestId("sidebar-profile-toggle"));
+
+    expect(useEventStore.getState().activeSection).toBe("profile");
+  });
+
+  test("the profile button stays lit while any hub section is on screen", () => {
+    // It IS the hub's entry point, so it carries "you are here" for all of
+    // the hub's sections — including ones only reachable from inside the hub.
+    useEventStore.setState({ activeSection: "wallpaper" });
+    renderSidebar();
+
+    expect(screen.getByTestId("sidebar-profile-toggle").className).toMatch(
+      /jarvis-nav-active/,
+    );
+  });
+
+  test("the profile button is calm on non-hub sections", () => {
+    useEventStore.setState({ activeSection: "board" });
+    renderSidebar();
+
+    expect(screen.getByTestId("sidebar-profile-toggle").className).not.toMatch(
+      /jarvis-nav-active/,
+    );
+  });
+
+  test("opens no popup — the hub is the only destination", () => {
+    renderSidebar();
+    fireEvent.click(screen.getByTestId("sidebar-profile-toggle"));
+
+    expect(screen.queryByTestId("sidebar-profile-panel")).toBeNull();
+    expect(screen.queryByTestId("sidebar-brain-card")).toBeNull();
+  });
+});
+
+describe("Sidebar assistant name header", () => {
+  beforeEach(() => {
+    useEventStore.setState({
+      voiceState: "idle",
+      transcription: "",
+      transcriptionFinal: true,
+      connected: true,
+      voiceReady: true,
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  test("renders the resolved assistant name (not a hardcoded 'Jarvis')", () => {
+    // The header wordmark must follow the configured assistant name so a user
+    // who renames the assistant (e.g. to "Ruben") never sees a stale "Jarvis".
+    useEventStore.setState({ assistantName: "Ruben" });
+
+    renderSidebar();
+
+    expect(screen.getByText("Ruben")).toBeTruthy();
+    expect(screen.queryByText("Jarvis")).toBeNull();
+  });
+
+  test("follows a live assistant-name change", () => {
+    useEventStore.setState({ assistantName: "Nova" });
+    renderSidebar();
+    expect(screen.getByText("Nova")).toBeTruthy();
+
+    act(() => {
+      useEventStore.setState({ assistantName: "Athena" });
+    });
+
+    expect(screen.getByText("Athena")).toBeTruthy();
+    expect(screen.queryByText("Nova")).toBeNull();
+  });
+});
+
+describe("Sidebar plugin reconnect indicator", () => {
+  beforeEach(() => {
+    useEventStore.setState({ connected: true, voiceReady: true });
+  });
+
+  afterEach(() => {
+    cleanup();
+    pluginAttentionMock.needsReconnect = false;
+  });
+
+  test("shows an amber dot on Plugins, MCPs & Skills when a plugin needs reconnect", () => {
+    // A revoked / expired plugin must be visible app-wide, not only on the
+    // Plugins page — the sidebar carries an amber dot on the row that fronts
+    // Plugins ("Plugins, MCPs & Skills", id "plugins").
+    pluginAttentionMock.needsReconnect = true;
+
+    renderSidebar();
+
+    expect(screen.getByTestId("nav-warn-plugins")).toBeTruthy();
+  });
+
+  test("no amber dot when every plugin is healthy", () => {
+    pluginAttentionMock.needsReconnect = false;
+
+    renderSidebar();
+
+    expect(screen.queryByTestId("nav-warn-plugins")).toBeNull();
+  });
+});
+
+describe("Sidebar voice-boot indicator", () => {
+  beforeEach(() => {
+    useEventStore.setState({
+      voiceState: "idle",
+      transcription: "",
+      transcriptionFinal: true,
+      connected: true,
+      voiceReady: false,
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  test("shows a 'Voice starting…' spinner while connected but voice not ready", () => {
+    // The window connects in ~1s but the voice feature warms up ~20s in the
+    // background. During that gap the header must signal "starting", not the
+    // normal idle "Ready" state (which would imply the mic already works).
+    useEventStore.setState({ connected: true, voiceReady: false });
+
+    const { container } = renderSidebar();
+
+    expect(screen.getByText("Voice starting…")).toBeTruthy();
+    expect(container.querySelector('[data-testid="voice-starting-spinner"]')).not.toBeNull();
+    // The normal idle voice label must NOT be shown during warmup.
+    expect(screen.queryByText("Ready")).toBeNull();
+  });
+
+  test("reverts to the normal voice state once voice is ready", () => {
+    useEventStore.setState({ connected: true, voiceReady: true, voiceState: "idle" });
+
+    const { container } = renderSidebar();
+
+    expect(screen.getByText("Ready")).toBeTruthy();
+    expect(screen.queryByText("Voice starting…")).toBeNull();
+    expect(container.querySelector('[data-testid="voice-starting-spinner"]')).toBeNull();
+  });
+
+  test("shows 'Offline' (not the spinner) when disconnected and NOT warming", () => {
+    // Truly offline: no live socket AND the WS is not in the fast-boot warming
+    // loop (no 1013) — the honest state is Offline.
+    useEventStore.setState({ connected: false, voiceReady: false, wsWarming: false });
+
+    const { container } = renderSidebar();
+
+    expect(screen.getByText("Offline")).toBeTruthy();
+    expect(screen.queryByText("Voice starting…")).toBeNull();
+    expect(container.querySelector('[data-testid="voice-starting-spinner"]')).toBeNull();
+  });
+
+  test("shows the booting label + spinner (not Offline) while warming", () => {
+    // Disconnected but the fast-boot bootstrap keeps closing the WS with 1013:
+    // the backend is still starting, so the honest state is "Starting…", not
+    // the alarming "Offline".
+    useEventStore.setState({ connected: false, voiceReady: false, wsWarming: true });
+
+    const { container } = renderSidebar();
+
+    expect(screen.getByText("Starting…")).toBeTruthy();
+    expect(screen.queryByText("Offline")).toBeNull();
+    expect(container.querySelector('[data-testid="voice-starting-spinner"]')).not.toBeNull();
+  });
+});
+
+/*
+ * The icon rail — what the sidebar becomes when it is dragged in.
+ *
+ * The seam used to stop at 200 px, which is still wide enough to read every
+ * label; in the Agentic IDE that meant a fifth of the window stayed spent on a
+ * nav list nobody was reading while a dozen terminals fought over the rest. Two
+ * things have to hold for the rail to be a sidebar rather than a broken one:
+ * every destination is still REACHABLE, and every icon still SAYS what it is.
+ * A refactor that quietly drops either turns the rail into a column of mystery
+ * glyphs, and nothing else on screen would look wrong.
+ *
+ * Anchored on the row's test id rather than its text: the label is translated,
+ * so asserting on it would make these pass or fail with the active locale.
+ */
+describe("Sidebar icon rail", () => {
+  beforeEach(() => {
+    useEventStore.setState({
+      voiceState: "idle",
+      transcription: "",
+      transcriptionFinal: true,
+      connected: true,
+      activeSection: "chats",
+    });
+  });
+
+  afterEach(() => cleanup());
+
+  test("shows its labels at the designed width", () => {
+    renderSidebar(SIDEBAR_DEFAULT_WIDTH);
+
+    expect(screen.getByTestId("sidebar").dataset.railed).toBe("false");
+    fireEvent.click(screen.getByTestId("sidebar-more-toggle"));
+    // The label is ON the row, and names the workspace rather than carrying
+    // the retired generic "Chat" label shown in the product screenshot.
+    expect(screen.getByTestId("nav-row-agentic-ide").textContent).toContain(
+      "Agentic IDE",
+    );
+  });
+
+  test("drops to icons once dragged past the snap point", () => {
+    renderSidebar(SIDEBAR_RAIL_AT_WIDTH - 1);
+
+    const aside = screen.getByTestId("sidebar");
+    expect(aside.dataset.railed).toBe("true");
+    // Snapped, not clipped: the band between the rail and a readable sidebar
+    // shows half a word per row and reads as a rendering fault, so it is
+    // skipped rather than rendered at the dragged width.
+    expect(aside.style.width).toBe(`${SIDEBAR_RAIL_WIDTH}px`);
+    expect(screen.getByTestId("nav-row-agents").getAttribute("aria-label")).toBeTruthy();
+  });
+
+  test("keeps every destination named once its label is off the screen", () => {
+    renderSidebar(SIDEBAR_RAIL_WIDTH);
+
+    const row = screen.getByTestId("nav-row-agents");
+    expect(row.getAttribute("aria-label")).toBeTruthy();
+    expect(row.getAttribute("title")).toBe(row.getAttribute("aria-label"));
+  });
+
+  test("still switches section on a click", () => {
+    renderSidebar(SIDEBAR_RAIL_WIDTH);
+
+    act(() => {
+      screen.getByTestId("nav-row-agents").click();
+    });
+
+    expect(useEventStore.getState().activeSection).toBe("agents");
+  });
+
+  test("keeps the rail canvas transparent and the active control glassy", () => {
+    renderSidebar(SIDEBAR_RAIL_WIDTH);
+
+    const sidebar = screen.getByTestId("sidebar");
+    expect(sidebar.querySelector(".jarvis-shell-surface")).toBeNull();
+    expect(screen.getByTestId("sidebar-new-chat")).toBeTruthy();
+  });
+
+  test("keeps the wake-word hint and realtime control off the rail", () => {
+    // Both are label-shaped controls that cannot say anything useful in 64 px.
+    // They step aside rather than being clipped into unreadable stubs.
+    useEventStore.setState({
+      voiceState: "listening",
+      transcription: "auflegen",
+      transcriptionFinal: false,
+    });
+
+    renderSidebar(SIDEBAR_RAIL_WIDTH);
+
+    expect(screen.queryByText("auflegen")).toBeNull();
+    // …and the navigation, which is the reason the rail exists, is still there.
+    expect(screen.getByTestId("sidebar-new-chat")).toBeTruthy();
+  });
+});
+
+/**
+ * The collapse state (the toggle itself moved to the window caption).
+ *
+ * The sidebar header no longer carries its own button — it lives in the
+ * caption's leading navigation (SectionNavButtons, owned by TopBar), beside
+ * back/forward, so the controls sit in the empty caption corner on every
+ * section. The collapsed STATE still belongs to the sidebar: the rail wins
+ * while it holds, and the drag stays as the finer way in.
+ */
+describe("Sidebar collapse state", () => {
+  beforeEach(() => {
+    useEventStore.setState({ activeSection: "chats", connected: true });
+  });
+
+  afterEach(() => cleanup());
+
+  function renderCollapsed(collapsed: boolean) {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={client}>
+        <Sidebar
+          width={SIDEBAR_DEFAULT_WIDTH}
+          collapsed={collapsed}
+        />
+      </QueryClientProvider>,
+    );
+  }
+
+  test("collapses to the rail even at a wide dragged width", () => {
+    renderCollapsed(true);
+
+    const aside = screen.getByTestId("sidebar");
+    // The collapse is a STATE, not a width: the dragged 280 px is remembered
+    // for the expand, and the rail wins while collapsed.
+    expect(aside.dataset.railed).toBe("true");
+    expect(aside.style.width).toBe(`${SIDEBAR_RAIL_WIDTH}px`);
+  });
+
+  test("expands to the dragged width once the state lifts", () => {
+    const { rerender } = renderCollapsed(true);
+    expect(screen.getByTestId("sidebar").dataset.railed).toBe("true");
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    rerender(
+      <QueryClientProvider client={client}>
+        <Sidebar
+          width={SIDEBAR_DEFAULT_WIDTH}
+          collapsed={false}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByTestId("sidebar").dataset.railed).toBe("false");
+  });
+
+  test("carries no toggle of its own — the caption owns it", () => {
+    // The header button moved to the caption's leading navigation
+    // (SectionNavButtons): a sidebar that flipped its own state would drift
+    // from the shell that owns the width beside it.
+    renderCollapsed(false);
+
+    expect(screen.queryByTestId("sidebar-collapse-toggle")).toBeNull();
+    expect(screen.getByTestId("sidebar")).toBeTruthy();
+  });
+});
+
+describe("compact sidebar navigation", () => {
+  beforeEach(() => {
+    useEventStore.setState({ activeSection: "chats", connected: true });
+    useIdeChatStore.setState({ workspaces: [], view: "chat" });
+  });
+  afterEach(() => cleanup());
+
+  test("keeps core destinations above visible recent chats", () => {
+    renderSidebar();
+    for (const id of ["agents", "dictation", "visualization", "tasks", "plugins", "marketplace"]) {
+      expect(screen.getByTestId(`nav-row-${id}`)).toBeTruthy();
+    }
+    expect(screen.getByTestId("recent-chats")).toBeTruthy();
+    expect(screen.queryByTestId("nav-row-wallpaper")).toBeNull();
+    expect(screen.queryByTestId("nav-row-memory")).toBeNull();
+  });
+
+  test("opens Jarvis Voice directly with artifacts in the main list", () => {
+    useHomeStore.setState({ surface: "chat" });
+    renderSidebar();
+    // Artifacts sits directly in the main list (where the retired "Jarvis
+    // Tools" folder used to be) — no "Show more" needed to reach it.
+    expect(screen.getByTestId("nav-row-visualization")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("nav-row-dictation"));
+    expect(useHomeStore.getState().surface).toBe("chat");
+    expect(useEventStore.getState().activeSection).toBe("dictation");
+    expect(screen.getAllByTestId("nav-row-dictation")).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("nav-row-visualization"));
+    expect(useEventStore.getState().activeSection).toBe("visualization");
+  });
+
+  test("expands tools through More without duplicating rows", () => {
+    renderSidebar();
+    fireEvent.click(screen.getByTestId("sidebar-more-toggle"));
+    expect(screen.getByTestId("nav-row-memory")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("nav-row-memory"));
+    expect(useEventStore.getState().activeSection).toBe("memory");
+    fireEvent.click(screen.getByTestId("sidebar-more-toggle"));
+    expect(screen.queryByTestId("nav-row-memory")).toBeNull();
+    expect(screen.getByTestId("recent-chats")).toBeTruthy();
+  });
+
+  test("the profile button opens the hub — hub tabs are the hub's own tests", () => {
+    // No popup anymore: entries like Wallpaper live in the hub's left nav
+    // (see SettingsHubView.test), so one click on the profile button is the
+    // whole interaction and it lands on the Profile tab.
+    renderSidebar();
+    fireEvent.click(screen.getByTestId("sidebar-profile-toggle"));
+    expect(useEventStore.getState().activeSection).toBe("profile");
+    expect(screen.queryByTestId("sidebar-profile-panel")).toBeNull();
+  });
+
+  test("every registered destination remains reachable", () => {
+    renderSidebar();
+    fireEvent.click(screen.getByTestId("sidebar-more-toggle"));
+    for (const item of [...NAV_GROUPS.flat(), ...NAV_FOOTER_ITEMS]) {
+      // Hub entries are one profile-button click away (covered above); the
+      // hub selects their tab itself (see SettingsHubView.test).
+      if ((SETTINGS_HUB_IDS as readonly string[]).includes(item.id)) continue;
+      expect(screen.getByTestId(item.id === "chats" ? "sidebar-new-chat" : `nav-row-${item.id}`)).toBeTruthy();
+    }
+    // And every hub id is still a valid section id — an id the hub lists
+    // that stops resolving strands deep links, the deck and voice commands.
+    for (const id of SETTINGS_HUB_IDS) {
+      expect(isSectionId(id)).toBe(true);
+    }
+  });
+});
