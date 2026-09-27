@@ -1,0 +1,42 @@
+flask
+flask-socketio
+speechrecognition
+pyttsx3
+pyaudio
+requests
+psutil
+mss
+opencv-python
+pygetwindow; platform_system == "Windows"
+mcp
+mcp-server-fetch
+
+# Voice engine (tts_jarvis.py): free online neural voice + offline fallback.
+# edge-tts needs internet but no API key/cost; pyttsx3 above is the offline
+# fallback and works with no internet at all.
+edge-tts
+playsound==1.2.2
+
+# Optional, offline speech recognition (VOICE_RECOGNIZER=sphinx): avoids
+# streaming ambient audio to Google's cloud API, at the cost of noticeably
+# lower accuracy. Uncomment to install:
+# pocketsphinx
+
+# Optional, local Whisper STT (VOICE_RECOGNIZER=whisper): offline,
+# low-hallucination speech recognition on your own CPU.
+# faster-whisper
+# numpy
+
+# Optional, desktop control (desktop.py): local mouse/keyboard/screenshot.
+# pyautogui
+# pillow
+
+# Optional, browser automation (browser.py): local Chromium via Playwright.
+# playwright
+# (then run: playwright install chromium)
+
+# NOT a pip package — a system package needed for Linux active-window
+# tracking (vision.py), and only works on X11, not Wayland:
+#   Debian/Ubuntu: sudo apt install xdotool
+#   Fedora:        sudo dnf install xdotool
+#   Arch:          sudo pacman -S xdotool

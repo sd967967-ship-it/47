@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>47 — Live Data</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#05070d; overflow:hidden; font-family: 'Rajdhani','Segoe UI',sans-serif; }
+  #hud { position:absolute; top:16px; left:16px; color:#4fd8ff; z-index:10; }
+  #hud h1 { margin:0; font-size:20px; letter-spacing:3px; text-shadow:0 0 8px #4fd8ff; }
+  #hud p { margin:4px 0 0; font-size:12px; color:#7fdfff88; }
+  #hudRow { display:flex; gap:10px; align-items:center; font-size:11px; color:#7fdfff; margin-top:6px; }
+  #liveDot { width:8px; height:8px; border-radius:50%; background:#2fbf6f; box-shadow:0 0 6px #2fbf6f; display:inline-block; }
+  .corner { position:fixed; width:26px; height:26px; border:2px solid #2fbfff66; z-index:9; pointer-events:none; }
+  #c1 { top:8px; left:8px; border-right:none; border-bottom:none; }
+  #c2 { top:8px; right:8px; border-left:none; border-bottom:none; }
+  #c3 { bottom:8px; left:8px; border-right:none; border-top:none; }
+  #c4 { bottom:8px; right:8px; border-left:none; border-top:none; }
+  #infoRail {
+    position:absolute; top:120px; right:16px; width:300px; max-height:60%;
+    overflow-y:auto; color:#c7f5ff; font-size:13px; background:rgba(10,20,30,0.72);
+    border:1px solid #2fbfff55; border-radius:8px; padding:10px 14px; display:none; z-index:10;
+  }
+  #infoRail h3 { margin:0 0 4px; font-size:14px; letter-spacing:1px; color:#4fd8ff; }
+  #infoRail .chip { display:inline-block; font-size:11px; border:1px solid #2fbfff88; border-radius:10px; padding:1px 8px; margin-bottom:6px; color:#9fe8ff; }
+  #infoRail pre { white-space:pre-wrap; margin:6px 0 0; font-size:12px; color:#c7f5ff; }
+  #textPanel {
+    position:absolute; bottom:64px; left:50%; transform:translateX(-50%); width:min(560px,92%;
+    ); max-height:150px;
+    overflow-y:auto; color:#c7f5ff; font-size:14px; background:rgba(10,20,30,0.82);
+    border:1px solid #2fbfff55; border-radius:8px; padding:10px 36px 10px 14px; display:none; z-index:11;
+  }
+  #textClose {
+    position:absolute; top:6px; right:10px; cursor:pointer; color:#7fdfff;
+    font-size:14px; border:none; background:none; z-index:12;
+  }
+  #zoomBar { position:absolute; bottom:64px; right:16px; display:flex; gap:6px; z-index:10; }
+  #zoomBar button {
+    background:#0d2c3d; border:1px solid #2fbfff88; color:#4fd8ff; border-radius:8px;
+    width:38px; height:32px; font-size:16px; cursor:pointer;
+  }
+  #inputBar {
+    position:absolute; bottom:16px; left:16px; right:16px; display:flex; gap:8px; z-index:10;
+  }
+  #inputBar input {
+    flex:1; background:rgba(10,20,30,0.75); border:1px solid #2fbfff55; border-radius:8px;
+    color:#c7f5ff; font-size:14px; padding:10px 14px; outline:none;
+  }
+  #inputBar input:focus-visible { border-color:#4fd8ff; box-shadow:0 0 0 2px #4fd8ff55; }
+  #inputBar input::placeholder { color:#7fdfff66; }
+  #inputBar button {
+    background:#0d2c3d; border:1px solid #2fbfff88; color:#4fd8ff; border-radius:8px;
+    padding:0 18px; font-size:13px; letter-spacing:1px; cursor:pointer;
+  }
+  #inputBar button:hover { background:#123a52; }
+  #vitals {
+    position:absolute; top:16px; right:16px; color:#7fdfff; font-size:12px;
+    background:rgba(10,20,30,0.5); border:1px solid #2fbfff33; border-radius:8px;
+    padding:10px 14px; min-width:150px; z-index:10;
+  }
+  #vitals div { display:flex; justify-content:space-between; margin:2px 0; }
+  #vitals span.val { color:#c7f5ff; font-weight:bold; }
+  #vitals .bar { height:4px; background:#123a52; border-radius:2px; margin:2px 0 4px; overflow:hidden; }
+  #vitals .bar i { display:block; height:100%; background:#4fd8ff; }
+  #objLabel {
+    position:absolute; bottom:110px; left:0; right:0; text-align:center;
+    color:#4fd8ff; font-size:13px; letter-spacing:2px;
+    text-shadow:0 0 6px #4fd8ff; display:none; z-index:10; pointer-events:none;
+  }
+  #objSub { font-size:11px; letter-spacing:1px; color:#9fe8ff; }
+  canvas { display:block; touch-action:none; }
+  @media (max-width:640px) {
+    #vitals { min-width:110px; font-size:11px; }
+    #infoRail { display:none; }
+    #textPanel { width:auto; right:16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+</style>
+</head>
+<body>
+<div id="hud">
+  <h1>47</h1>
+  <p>live data visualization</p>
+  <div id="hudRow"><span id="liveDot"></span><span>LIVE</span><span id="hudClock">--:--</span><span>FPS <span id="hudFps">--</span></span><span id="hudObj">OBJ:--</span></div>
+</div>
+<div class="corner" id="c1"></div><div class="corner" id="c2"></div><div class="corner" id="c3"></div><div class="corner" id="c4"></div>
+<div id="vitals" aria-live="polite">
+  <div>CPU <span class="val" id="v-cpu">--%</span></div><div class="bar"><i id="b-cpu"></i></div>
+  <div>RAM <span class="val" id="v-ram">--%</span></div><div class="bar"><i id="b-ram"></i></div>
+  <div>Disk <span class="val" id="v-disk">--%</span></div><div class="bar"><i id="b-disk"></i></div>
+  <div>Battery <span class="val" id="v-batt">--%</span></div>
+  <div style="margin-top:6px; border-top:1px solid #2fbfff33; padding-top:6px;">
+    Active: <span class="val" id="v-window">--</span>
+  </div>
+</div>
+<div id="objLabel"></div>
+<div id="infoRail" aria-live="polite"><h3 id="railTitle">Object</h3><span class="chip" id="railType">3d</span><pre id="railBody"></pre></div>
+<div id="textPanel" aria-live="polite"><button id="textClose" title="Dismiss">✕</button><span id="textBody"></span></div>
+<div id="zoomBar"><button id="zoomIn" title="Zoom in">+</button><button id="zoomOut" title="Zoom out">−</button><button id="zoomReset" title="Reset view">⟡</button></div>
+<div id="inputBar">
+  <input id="typedInput" type="text" placeholder="Type a command or data for 47 (no wake word needed here)…" autocomplete="off">
+  <button id="sendBtn">SEND</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+// ---------- Three.js scene setup ----------
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(0, 6, 18);
+
+// PERF NOTE: this scene is a handful of low-poly boxes/spheres/tubes with no
+// shadows and no post-processing, which any Iris Xe (or newer) integrated
+// GPU renders at 60fps without breaking a sweat — the visuals are NOT being
+// downgraded. The one real waste on a laptop is devicePixelRatio: many 1080p/
+// 1440p laptop panels report 1.5-3x scaling, which makes the iGPU render
+// (and discard) 2-9x the pixels for zero visible difference at this scene's
+// detail level. Capping that, plus a small adaptive step that only engages
+// if frames genuinely start dropping (never preemptively), keeps full
+// quality by default and only backs off if the hardware actually needs it.
+const MAX_PIXEL_RATIO = 1.5;
+let currentPixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(currentPixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Adaptive quality: only steps DOWN if frame time is consistently bad (drop
+// antialiasing first, then pixel ratio), and steps back UP once things
+// recover — so a capable iGPU always ends up back at full quality.
+let aaEnabled = true;
+let frameTimes = [];
+function trackFrameTime(deltaMs) {
+  frameTimes.push(deltaMs);
+  if (frameTimes.length < 90) return; // ~1.5s at 60fps before judging anything
+  const avg = frameTimes.reduce((a,b) => a+b, 0) / frameTimes.length;
+  frameTimes = [];
+  if (avg > 33 && currentPixelRatio > 1) { // sustained <30fps
+    currentPixelRatio = Math.max(1, currentPixelRatio - 0.5);
+    renderer.setPixelRatio(currentPixelRatio);
+  } else if (avg < 18 && currentPixelRatio < MAX_PIXEL_RATIO) { // comfortably >55fps, room to spare
+    currentPixelRatio = Math.min(MAX_PIXEL_RATIO, currentPixelRatio + 0.5);
+    renderer.setPixelRatio(currentPixelRatio);
+  }
+}
+
+const ambientLight = new THREE.AmbientLight(0x224466, 1.2);
+scene.add(ambientLight);
+const point = new THREE.PointLight(0x4fd8ff, 1.5, 100);
+point.position.set(10, 15, 10);
+scene.add(point);
+
+// Rotating holographic-style grid floor (visual only, not a hologram projection)
+const grid = new THREE.GridHelper(40, 40, 0x1fbfff, 0x113344);
+grid.position.y = -2;
+scene.add(grid);
+
+let dataGroup = new THREE.Group();
+scene.add(dataGroup);
+let autoRotate = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+// Free custom orbit controls (no CDN dependency — always works):
+// left-drag rotates, wheel/pinch zooms, right-drag pans. Free access.
+let controls = null;
+(function initFreeControls() {
+  const el = renderer.domElement;
+  let dragging = false, btn = 0, lx = 0, ly = 0, pinchD = 0;
+  el.addEventListener('mousedown', (e) => { dragging = true; btn = e.button; lx = e.clientX; ly = e.clientY; autoRotate = false; });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - lx, dy = e.clientY - ly;
+    lx = e.clientX; ly = e.clientY;
+    if (btn === 2) { camera.position.x -= dx * 0.02; camera.position.y += dy * 0.02; }
+    else { dataGroup.rotation.y += dx * 0.008; dataGroup.rotation.x += dy * 0.005; }
+  });
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    autoRotate = false;
+    const s = e.deltaY > 0 ? 1.1 : 0.9;
+    const len = camera.position.length();
+    const nl = Math.max(6, Math.min(45, len * s));
+    camera.position.multiplyScalar(nl / len);
+  }, { passive: false });
+  el.addEventListener('touchstart', (e) => {
+    autoRotate = false;
+    if (e.touches.length === 2) {
+      pinchD = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                           e.touches[0].clientY - e.touches[1].clientY);
+    } else { lx = e.touches[0].clientX; ly = e.touches[0].clientY; }
+  }, { passive: true });
+  el.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                            e.touches[0].clientY - e.touches[1].clientY);
+      const len = camera.position.length();
+      const nl = Math.max(6, Math.min(45, len * (pinchD / (d || pinchD))));
+      camera.position.multiplyScalar(nl / len);
+      pinchD = d;
+    } else if (e.touches.length === 1) {
+      dataGroup.rotation.y += (e.touches[0].clientX - lx) * 0.008;
+      dataGroup.rotation.x += (e.touches[0].clientY - ly) * 0.005;
+      lx = e.touches[0].clientX; ly = e.touches[0].clientY;
+    }
+  }, { passive: true });
+})();
+
+function clearGroup() {
+  dataGroup.traverse((o) => {
+    if (o.geometry && o.geometry !== undefined) {
+      try { o.geometry.dispose(); } catch (e) {}
+    }
+    if (o.material) {
+      try {
+        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose && m.dispose());
+        else o.material.dispose && o.material.dispose();
+      } catch (e) {}
+    }
+  });
+  while (dataGroup.children.length) dataGroup.remove(dataGroup.children[0]);
+  document.getElementById('objLabel').style.display = 'none';
+}
+
+function glowMat(hex, emissiveHex) {
+  return new THREE.MeshStandardMaterial({ color: hex, emissive: emissiveHex || 0x0a2a3a, metalness: 0.35, roughness: 0.4 });
+}
+
+// ---------- Visualization builders: data ----------
+function renderBars(payload) {
+  clearGroup();
+  autoRotate = true;
+  const { labels, values } = payload;
+  const max = Math.max(...values, 1);
+  const spacing = 2.2;
+  const startX = -((values.length - 1) * spacing) / 2;
+
+  values.forEach((v, i) => {
+    const height = (v / max) * 8 + 0.5;
+    const geo = new THREE.BoxGeometry(1.2, height, 1.2);
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL(0.55 - i * 0.05, 0.8, 0.55),
+      emissive: 0x0a2a3a, metalness: 0.3, roughness: 0.4,
+    });
+    const bar = new THREE.Mesh(geo, mat);
+    bar.position.set(startX + i * spacing, height / 2 - 2, 0);
+    dataGroup.add(bar);
+  });
+}
+
+function renderNetwork(payload) {
+  clearGroup();
+  autoRotate = true;
+  const { nodes } = payload; // [{id, x?, y?, z?}], edges optional
+  const positions = [];
+  nodes.forEach((n, i) => {
+    const angle = (i / nodes.length) * Math.PI * 2;
+    const radius = 6;
+    const pos = new THREE.Vector3(Math.cos(angle)*radius, Math.sin(i*1.3)*2, Math.sin(angle)*radius);
+    positions.push(pos);
+    const geo = new THREE.SphereGeometry(0.4, 16, 16);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x4fd8ff, emissive: 0x0a3a4a });
+    const sphere = new THREE.Mesh(geo, mat);
+    sphere.position.copy(pos);
+    dataGroup.add(sphere);
+  });
+  for (let i = 0; i < positions.length - 1; i++) {
+    const geo = new THREE.BufferGeometry().setFromPoints([positions[i], positions[i+1]]);
+    const mat = new THREE.LineBasicMaterial({ color: 0x2fbfff });
+    dataGroup.add(new THREE.Line(geo, mat));
+  }
+}
+
+// ---------- Visualization builders: generic 3D "objects" ----------
+// NOTE (see visual3d.py): these are labeled, parametric, category-level
+// representations — not literal/accurate models of whatever you named.
+function labelObject(text, sub) {
+  const el = document.getElementById('objLabel');
+  el.innerHTML = '';
+  const main = document.createElement('div');
+  main.textContent = text;
+  el.appendChild(main);
+  if (sub) {
+    const s = document.createElement('div');
+    s.id = 'objSub';
+    s.textContent = sub;
+    el.appendChild(s);
+  }
+  el.style.display = 'block';
+  const typeEl = document.getElementById('hudObj');
+  if (typeEl) typeEl.textContent = 'OBJ:' + text.slice(0, 24);
+  const rail = document.getElementById('infoRail');
+  document.getElementById('railTitle').textContent = text;
+  document.getElementById('railType').textContent = sub || '3d object';
+  rail.style.display = 'block';
+}
+
+function renderBuilding(payload) {
+  clearGroup();
+  autoRotate = true;
+  const floors = Math.max(3, Math.min(12, payload.floors || 6));
+  labelObject(payload.label || 'Building', 'building · ' + floors + ' floors');
+  const floorH = 1.1;
+  for (let i = 0; i < floors; i++) {
+    const w = 4.5 - i * 0.08;
+    const geo = new THREE.BoxGeometry(w, floorH, w);
+    const mat = glowMat(new THREE.Color().setHSL(0.55, 0.5, 0.35 + i * 0.02), 0x0a2a3a);
+    const box = new THREE.Mesh(geo, mat);
+    box.position.set(0, -2 + floorH/2 + i * floorH, 0);
+    dataGroup.add(box);
+    // lit "windows" — small emissive dots on each face (s0:+x s1:+z s2:-x s3:-z)
+    const rots = [Math.PI/2, 0, -Math.PI/2, Math.PI];
+    for (let s = 0; s < 4; s++) {
+      const wx = (s % 2 === 0) ? (s === 0 ? w/2 + 0.01 : -w/2 - 0.01) : 0;
+      const wz = (s % 2 === 1) ? (s === 1 ? w/2 + 0.01 : -w/2 - 0.01) : 0;
+      const win = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.3, 0.3),
+        new THREE.MeshBasicMaterial({ color: 0xfff2b0 })
+      );
+      win.position.set(wx, -2 + floorH/2 + i * floorH, wz);
+      win.rotation.y = rots[s];
+      dataGroup.add(win);
+    }
+  }
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 1.2), glowMat(0x1fbfff, 0x0a2a3a));
+  roof.position.set(0, -2 + floors * floorH + 0.2, 0);
+  dataGroup.add(roof);
+}
+
+function renderTool(payload) {
+  clearGroup();
+  autoRotate = true;
+  labelObject(payload.label || 'Tool', 'tool · handle + head');
+  // abstract handle + head, evokes a wrench/hammer without claiming accuracy
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 6, 24), glowMat(0x8899aa, 0x111a22));
+  handle.rotation.z = Math.PI / 5;
+  dataGroup.add(handle);
+  const head = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.5, 16, 32), glowMat(0x4fd8ff, 0x0a3a4a));
+  head.position.set(2.6, 2.1, 0);
+  head.rotation.x = Math.PI / 2;
+  dataGroup.add(head);
+}
+
+function renderVehicle(payload) {
+  clearGroup();
+  autoRotate = true;
+  labelObject(payload.label || 'Vehicle', 'vehicle · body + cabin');
+  const body = new THREE.Mesh(new THREE.BoxGeometry(6, 1.4, 2.6), glowMat(0x4fd8ff, 0x0a3a4a));
+  body.position.y = 0.2;
+  dataGroup.add(body);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(3, 1.1, 2.2), glowMat(0x1fbfff, 0x0a2a3a));
+  cabin.position.set(-0.3, 1.15, 0);
+  dataGroup.add(cabin);
+  [[-2, -0.6, 1.3], [2, -0.6, 1.3], [-2, -0.6, -1.3], [2, -0.6, -1.3]].forEach(([x,y,z]) => {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.5, 20), glowMat(0x223344, 0x000000));
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(x, y, z);
+    dataGroup.add(wheel);
+  });
+}
+
+function renderMapPath(payload) {
+  clearGroup();
+  autoRotate = false;
+  labelObject(payload.label || 'Map / Path', 'map · route');
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(18, 18, 20, 20),
+    new THREE.MeshStandardMaterial({ color: 0x0c1c28, wireframe: false, metalness: 0.1, roughness: 0.9 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -1.90;
+  dataGroup.add(ground);
+
+  // A glowing winding path across the ground with a couple of "pins"
+  const pathPoints = [];
+  const segments = 12;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const x = -8 + t * 16;
+    const z = Math.sin(t * Math.PI * 2.2) * 3;
+    pathPoints.push(new THREE.Vector3(x, -1.8, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(pathPoints);
+  const tubeGeo = new THREE.TubeGeometry(curve, 64, 0.12, 8, false);
+  dataGroup.add(new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: 0x4fd8ff })));
+
+  [['START', pathPoints[0]], ['END', pathPoints[pathPoints.length - 1]]].forEach(([tag, p]) => {
+    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.2, 16), glowMat(0xff8a4f, 0x3a1a0a));
+    pin.position.set(p.x, p.y + 0.9, p.z);
+    dataGroup.add(pin);
+    const stemGeo = new THREE.BufferGeometry().setFromPoints(
+      [new THREE.Vector3(p.x, p.y, p.z), new THREE.Vector3(p.x, p.y + 0.6, p.z)]);
+    dataGroup.add(new THREE.Line(stemGeo, new THREE.LineBasicMaterial({ color: 0xff8a4f })));
+  });
+}
+
+function renderElectronics(payload) {
+  clearGroup();
+  autoRotate = true;
+  labelObject(payload.label || 'Electronics', 'electronics · body + screen');
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4, 2.6, 0.3), glowMat(0x223344, 0x0a1a22));
+  dataGroup.add(body);
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.5, 2.1),
+    new THREE.MeshBasicMaterial({ color: 0x4fd8ff, transparent: true, opacity: 0.85 })
+  );
+  screen.position.z = 0.16;
+  dataGroup.add(screen);
+}
+
+function renderNature(payload) {
+  clearGroup();
+  autoRotate = true;
+  labelObject(payload.label || 'Nature', 'nature · trunk + canopy');
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 2.4, 12), glowMat(0x5a4632, 0x1a120a));
+  trunk.position.y = -0.8;
+  dataGroup.add(trunk);
+  [[0, 1.6, 0, 1.6], [0.9, 1.1, 0.3, 1.1], [-0.9, 1.0, -0.3, 1.2]].forEach(([x, y, z, s]) => {
+    const foliage = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 0), glowMat(0x2fbf6f, 0x0a2a1a));
+    foliage.position.set(x, y, z);
+    dataGroup.add(foliage);
+  });
+}
+
+function renderFurniture(payload) {
+  clearGroup();
+  autoRotate = true;
+  labelObject(payload.label || 'Furniture', 'furniture · top + legs');
+  const top = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 2.4), glowMat(0x8899aa, 0x111a22));
+  top.position.y = 0.6;
+  dataGroup.add(top);
+  [[-1.7, -0.6, -0.9], [1.7, -0.6, -0.9], [-1.7, -0.6, 0.9], [1.7, -0.6, 0.9]].forEach(([x, y, z]) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.6, 0.2), glowMat(0x556677, 0x0a1520));
+    leg.position.set(x, y, z);
+    dataGroup.add(leg);
+  });
+}
+
+function renderGeneric(payload) {
+  clearGroup();
+  autoRotate = true;
+  labelObject(payload.label || 'Object', '3d · parametric model');
+  const geo = new THREE.IcosahedronGeometry(2.4, 0);
+  const mat = glowMat(0x4fd8ff, 0x0a3a4a);
+  mat.wireframe = false;
+  const shape = new THREE.Mesh(geo, mat);
+  dataGroup.add(shape);
+  const wire = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ color: 0xc7f5ff, wireframe: true, transparent: true, opacity: 0.4 }));
+  wire.scale.setScalar(1.02);
+  dataGroup.add(wire);
+}
+
+function renderObject3D(payload) {
+  const type = payload.type;
+  if (type === 'building') renderBuilding(payload);
+  else if (type === 'tool') renderTool(payload);
+  else if (type === 'vehicle') renderVehicle(payload);
+  else if (type === 'map_path') renderMapPath(payload);
+  else if (type === 'electronics') renderElectronics(payload);
+  else if (type === 'nature') renderNature(payload);
+  else if (type === 'furniture') renderFurniture(payload);
+  else renderGeneric(payload);
+}
+
+function showText(payload) {
+  const panel = document.getElementById('textPanel');
+  panel.style.display = 'block';
+  document.getElementById('textBody').textContent = payload.content;
+  panel.scrollTop = 0;
+  const railBody = document.getElementById('railBody');
+  if (railBody) {
+    railBody.textContent = payload.content.slice(0, 2000);
+    document.getElementById('infoRail').style.display = 'block';
+  }
+}
+document.getElementById('textClose').addEventListener('click', () => {
+  document.getElementById('textPanel').style.display = 'none';
+});
+
+function updateVitals(v) {
+  document.getElementById('v-cpu').textContent = `${v.cpu_percent}%`;
+  document.getElementById('v-ram').textContent = `${v.ram_percent}%`;
+  document.getElementById('v-disk').textContent = `${v.disk_percent}%`;
+  document.getElementById('v-batt').textContent =
+    v.battery_percent !== null ? `${v.battery_percent}%${v.battery_plugged ? ' ⚡' : ''}` : 'N/A';
+  const setBar = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = Math.max(0, Math.min(100, pct)) + '%'; };
+  setBar('b-cpu', v.cpu_percent); setBar('b-ram', v.ram_percent); setBar('b-disk', v.disk_percent);
+}
+
+// ---------- Socket connection ----------
+// SECURITY FIX: the dashboard used to accept socket connections from
+// anyone who could reach this port, with no login at all — see main.py's
+// dashboard-auth comments for the full story. The server now only renders
+// this page (and only accepts this socket) if the request carries the
+// access token it printed at startup, so that token has to already be in
+// this page's own URL for us to have gotten this far. Forward it onto the
+// socket handshake so the server's connect handler can check it too.
+const _47Token = new URLSearchParams(window.location.search).get('token') || '';
+const socket = io({ query: { token: _47Token },
+  reconnection: true, reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000, reconnectionDelayMax: 8000, timeout: 15000 });
+function connLost(msg) {
+  document.getElementById('hud').innerHTML =
+    '<h1 style="color:#ff5f5f">47</h1><p style="color:#ff9a9a">' + msg + '</p>';
+}
+socket.on('connect', () => { document.getElementById('liveDot').style.background = '#2fbf6f'; });
+socket.on('disconnect', () => {
+  document.getElementById('liveDot').style.background = '#ff5f5f';
+  connLost('Reconnecting to 47… (connection dropped, retrying)');
+});
+socket.on('reconnect', () => { location.reload(); });
+socket.on('connect_error', (err) => {
+  document.getElementById('hud').innerHTML =
+    '<h1 style="color:#ff5f5f">47</h1><p style="color:#ff9a9a">' +
+    'Connection rejected — missing or wrong access token in the URL.</p>';
+});
+socket.on('data_47', (msg) => {
+  if (msg.kind === 'vitals') { updateVitals(msg.payload); return; }
+  if (msg.kind === 'window') { document.getElementById('v-window').textContent = msg.payload.title.slice(0,20); return; }
+  if (msg.kind === 'text') { showText(msg.payload); return; }
+  // Visuals no longer hide the 2D text panel: 3D + detailed text coexist.
+  if (msg.kind === 'bars') renderBars(msg.payload);
+  else if (msg.kind === 'network') renderNetwork(msg.payload);
+  else if (msg.kind === 'object3d') renderObject3D(msg.payload);
+});
+
+// ---------- Typed input (no wake word needed — this box IS being addressed) ----------
+function sendTyped() {
+  const input = document.getElementById('typedInput');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('user_text_command', { text });
+  input.value = '';
+}
+document.getElementById('sendBtn').addEventListener('click', sendTyped);
+document.getElementById('typedInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendTyped();
+});
+
+// Demo data on load so the dashboard isn't empty
+renderBars({ labels: ['A','B','C','D'], values: [3,7,4,9] });
+
+document.getElementById('zoomIn').addEventListener('click', () => { camera.position.multiplyScalar(0.85); });
+document.getElementById('zoomOut').addEventListener('click', () => { camera.position.multiplyScalar(1.18); });
+document.getElementById('zoomReset').addEventListener('click', () => { camera.position.set(0, 6, 18); autoRotate = true; });
+
+setInterval(() => {
+  const c = document.getElementById('hudClock');
+  if (c) c.textContent = new Date().toLocaleTimeString();
+}, 1000);
+
+// ---------- Render loop ----------
+let lastFrameTs = performance.now();
+let fpsAcc = 0, fpsN = 0, fpsLast = performance.now();
+let pageVisible = true;
+document.addEventListener('visibilitychange', () => { pageVisible = !document.hidden; });
+function animate() {
+  requestAnimationFrame(animate);
+  if (!pageVisible) { lastFrameTs = performance.now(); return; } // zero GPU when tab hidden
+  const now = performance.now();
+  trackFrameTime(now - lastFrameTs);
+  lastFrameTs = now;
+  fpsAcc += now - fpsLast; fpsLast = now; fpsN++;
+  if (fpsAcc >= 1000) {
+    const fpsEl = document.getElementById('hudFps');
+    if (fpsEl) fpsEl.textContent = Math.round(1000 * fpsN / fpsAcc);
+    fpsAcc = 0; fpsN = 0;
+  }
+  if (autoRotate) dataGroup.rotation.y += 0.003;
+  if (controls) controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
