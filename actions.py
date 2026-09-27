@@ -147,6 +147,70 @@ def fetch_url(url: str, max_chars: int = 4000) -> str:
         return f"Couldn't fetch that page: {e}"
 
 
+# ---------- Enquiry images (free, no API key: Wikimedia Commons) ----------
+_COMMONS_URL = "https://commons.wikimedia.org/w/api.php"
+_IMAGE_MAX_BYTES = 1500000
+
+
+def _parse_commons_pages(data: dict, width: int = 800):
+    """Pull [{title, thumb_url, desc, page_url}] out of a Commons API reply."""
+    import html as _html
+    pages = (data or {}).get("query", {}).get("pages", {})
+    out = []
+    for page in pages.values():
+        info = (page.get("imageinfo") or [{}])[0]
+        thumb = info.get("thumburl") or info.get("url", "")
+        raw_desc = ((info.get("extmetadata") or {}).get("ImageDescription") or {}).get("value", "")
+        desc = re.sub(r"(?s)<[^>]+>", " ", raw_desc or "")
+        desc = _html.unescape(re.sub(r"\s+", " ", desc).strip())[:300]
+        out.append({
+            "title": page.get("title", "").replace("File:", "").rsplit(".", 1)[0][:60],
+            "thumb_url": thumb,
+            "desc": desc,
+            "page_url": info.get("descriptionurl", ""),
+        })
+    return out
+
+
+def fetch_enquiry_images(query: str, count: int = 3):
+    """Search Wikimedia Commons for `query` and return up to `count` photos
+    as {title, data_url, desc, page_url}. Downloads thumbs locally (capped)
+    so the dashboard needs no third-party requests. Returns (images, note)."""
+    import base64
+    try:
+        data = request_with_retry(
+            "GET", _COMMONS_URL,
+            params={"action": "query", "format": "json", "generator": "search",
+                    "gsrsearch": query, "gsrnamespace": 6, "gsrlimit": count,
+                    "prop": "imageinfo", "iiprop": "url|size|extmetadata",
+                    "iiurlwidth": 800},
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0 (47-assistant/1.0)"},
+        ).json()
+    except Exception as e:
+        return [], f"Image search failed: {e}"
+    images = []
+    for item in _parse_commons_pages(data)[:max(1, min(count, 5))]:
+        if not item["thumb_url"]:
+            continue
+        try:
+            resp = request_with_retry("GET", item["thumb_url"], timeout=15,
+                                      headers={"User-Agent": "Mozilla/5.0 (47-assistant/1.0)"})
+            ctype = resp.headers.get("Content-Type", "")
+            blob = resp.content or b""
+            if not ctype.startswith("image/") or len(blob) > _IMAGE_MAX_BYTES or not blob:
+                continue
+            mime = ctype.split(";")[0].strip()
+            item["data_url"] = f"data:{mime};base64," + base64.b64encode(blob).decode()
+            del item["thumb_url"]
+            images.append(item)
+        except Exception:
+            continue
+    if not images:
+        return [], f"No usable photos found for '{query}'."
+    return images, ""
+
+
 # ---------- Live weather (free, no API key: Open-Meteo) ----------
 def get_weather(place: str) -> str:
     """Real-time weather for a place name, via Open-Meteo (free, no key,

@@ -782,6 +782,28 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         push_to_dashboard("text", {"content": report})
         return
 
+    for trigger in ("image of ", "picture of ", "photo of ", "show image of ",
+                    "show me a picture of ", "show me picture of "):
+        if lowered.startswith(trigger):
+            subject = text[len(trigger):].strip(" ?.")
+            if not subject:
+                speak("Tell me what to show pictures of.")
+                return
+            images, note = actions.fetch_enquiry_images(subject)
+            if not images:
+                speak(note[:280])
+                push_to_dashboard("text", {"content": note})
+                return
+            lines = [f"Photos of {subject} (Wikimedia Commons):"]
+            lines += [f"- {img['title']}" + (f": {img['desc']}" if img["desc"] else "")
+                      for img in images]
+            report = "\n".join(lines)
+            speak(f"Showing {len(images)} photos of {subject}." +
+                  (f" {images[0]['desc']}" if images[0]["desc"] else ""))
+            push_to_dashboard("text", {"content": report,
+                                       "images": [img["data_url"] for img in images]})
+            return
+
     if lowered.startswith("research "):
         topic = text[len("research "):].strip() or "general knowledge"
         import prompts as _prompts

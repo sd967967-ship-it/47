@@ -77,6 +77,9 @@
     position:absolute; top:6px; right:10px; cursor:pointer; color:#7fdfff;
     font-size:14px; border:none; background:none; z-index:12;
   }
+  #imgStrip { display:none; gap:10px; justify-content:center; margin-bottom:10px; flex-wrap:wrap; }
+  #imgStrip img { max-height:150px; max-width:32%; border-radius:8px;
+    border:1px solid #2fbfff66; object-fit:cover; }
   #zoomBar { position:absolute; bottom:64px; right:16px; display:flex; gap:6px; z-index:10; }
   #zoomBar button {
     background:#0d2c3d; border:1px solid #2fbfff88; color:#4fd8ff; border-radius:8px;
@@ -149,7 +152,7 @@
 </div>
 <div id="objLabel"></div>
 <div id="infoRail" aria-live="polite"><h3 id="railTitle">Object</h3><span class="chip" id="railType">3d</span></div>
-<div id="textPanel" aria-live="polite"><button id="textClose" title="Dismiss">✕</button><span id="textBody"></span></div>
+<div id="textPanel" aria-live="polite"><button id="textClose" title="Dismiss">✕</button><div id="imgStrip"></div><span id="textBody"></span></div>
 <div id="zoomBar"><button id="zoomIn" title="Zoom in">+</button><button id="zoomOut" title="Zoom out">−</button><button id="zoomReset" title="Reset view">⟡</button></div>
 <div id="inputBar">
   <input id="typedInput" type="text" placeholder="Type a command or data for 47 (no wake word needed here)…" autocomplete="off">
@@ -541,11 +544,21 @@ function renderObject3D(payload) {
 }
 
 function showText(payload) {
-  // Single centered response: the right rail keeps telemetry only
-  // (title/type + headlines), never a copy of this text.
+  // Single centered response: photos (if any) on top, text below.
+  // The right rail keeps telemetry only, never a copy of this text.
   const panel = document.getElementById('textPanel');
   panel.style.display = 'block';
-  document.getElementById('textBody').textContent = payload.content;
+  document.getElementById('textBody').textContent = payload.content || '';
+  const strip = document.getElementById('imgStrip');
+  strip.innerHTML = '';
+  const imgs = payload.images || [];
+  imgs.forEach((src) => {
+    const im = document.createElement('img');
+    im.src = src;
+    im.alt = 'enquiry photo';
+    strip.appendChild(im);
+  });
+  strip.style.display = imgs.length ? 'flex' : 'none';
   panel.scrollTop = 0;
 }
 document.getElementById('textClose').addEventListener('click', () => {
