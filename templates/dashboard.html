@@ -4,265 +4,277 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
+<title>47 — Personal intelligence</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<title>47 — Live Data</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --font-display: 'Orbitron', 'Rajdhani', 'Segoe UI', sans-serif;
-    --font-body: 'Share Tech Mono', 'Cascadia Code', Consolas, monospace;
-  }
-  html, body { margin:0; padding:0; height:100%; background:#05070d; overflow:hidden; font-family: var(--font-body); }
-  #hud { position:absolute; top:16px; left:16px; color:#4fd8ff; z-index:10; }
-  #hud h1 { margin:0; font-size:20px; letter-spacing:3px; text-shadow:0 0 8px #4fd8ff; font-family:var(--font-display); }
-  #hud p { margin:4px 0 0; font-size:12px; color:#7fdfff88; }
-  #hudRow { display:flex; gap:10px; align-items:center; font-size:11px; color:#7fdfff; margin-top:6px; }
-  #liveDot { width:8px; height:8px; border-radius:50%; background:#2fbf6f; box-shadow:0 0 6px #2fbf6f; display:inline-block; }
-  #landing { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:20; pointer-events:none; transition:opacity .45s; gap:14px; }
-  #landing .logo {
-    font-family:var(--font-display);
-    font-size:min(24vw,190px); font-weight:600; letter-spacing:.12em; line-height:1;
-    padding:6px 46px 18px; border-radius:28px; color:#eafcff;
-    background:linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,.03) 55%, rgba(79,216,255,.10));
-    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
-    filter:drop-shadow(0 0 26px rgba(79,216,255,.55));
-    border:1px solid rgba(255,255,255,.14);
-    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
-    box-shadow:0 0 60px rgba(79,216,255,.12), inset 0 1px 0 rgba(255,255,255,.25);
-  }
-  #landing p { margin:0; font-size:13px; letter-spacing:2px; color:#7fdfff99; }
-  body.responding #landing { opacity:0; }
-  #miniLogo { position:absolute; top:14px; left:16px; z-index:10; display:none;
-    font-family:var(--font-display);
-    font-size:26px; font-weight:600; letter-spacing:.12em; color:#eafcff;
-    text-shadow:0 0 12px #4fd8ff; }
-  body.responding #miniLogo { display:block; }
-  #miniRow { font-size:11px; color:#7fdfff; letter-spacing:1px; margin-top:2px; }
-  #sidePanel {
-    position:absolute; top:120px; right:16px; width:250px; max-height:62%;
-    overflow-y:auto; z-index:10; display:none;
-    background:rgba(10,20,30,.72); border:1px solid #2fbfff55; border-radius:12px;
-    padding:12px 14px; color:#c7f5ff;
-    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-  }
-  body.responding #sidePanel { display:block; }
-  #leftPanel {
-    position:absolute; top:120px; left:16px; width:250px; max-height:62%;
-    overflow-y:auto; z-index:10;
-    background:rgba(10,20,30,.72); border:1px solid #2fbfff55; border-radius:12px;
-    padding:12px 14px; color:#c7f5ff;
-    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-  }
-  #leftPanel .sideSec { margin-top:0; }
-  #l-procs div, #l-drives div { margin:2px 0; }
-  #s-clock { font-size:30px; font-weight:200; letter-spacing:2px; color:#eafcff; }
-  #s-date { font-size:12px; color:#7fdfff; letter-spacing:1px; margin-bottom:8px; }
-  .sideSec { font-size:11px; letter-spacing:2px; color:#4fd8ff; margin:10px 0 4px;
-    border-top:1px solid #2fbfff33; padding-top:8px; }
-  #s-brief div { font-size:12px; margin:3px 0; color:#c7f5ff; }
-  .corner { position:fixed; width:26px; height:26px; border:2px solid #2fbfff66; z-index:9; pointer-events:none; }
-  #c1 { top:8px; left:8px; border-right:none; border-bottom:none; }
-  #c2 { top:8px; right:8px; border-left:none; border-bottom:none; }
-  #c3 { bottom:8px; left:8px; border-right:none; border-top:none; }
-  #c4 { bottom:8px; right:8px; border-left:none; border-top:none; }
-    position:absolute; top:120px; right:16px; width:300px; max-height:60%;
-    overflow-y:auto; color:#c7f5ff; font-size:13px; background:rgba(10,20,30,0.72);
-    border:1px solid #2fbfff55; border-radius:8px; padding:10px 14px; display:none; z-index:10;
-  }
-  #textPanel {
-    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    width:min(620px,90%); max-height:46%;
-    overflow-y:auto; color:#d8f6ff; font-size:15px; line-height:1.65; letter-spacing:.4px;
-    background:rgba(8,16,26,.88);
-    border:1px solid #2fbfff66; border-radius:12px; padding:16px 44px 16px 18px; display:none; z-index:11;
-    box-shadow:0 0 40px rgba(79,216,255,.15);
-    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-  }
-  #textClose {
-    position:absolute; top:6px; right:10px; cursor:pointer; color:#7fdfff;
-    font-size:14px; border:none; background:none; z-index:12;
-  }
-  #textBody .msg { margin:10px 0; padding:8px 12px; border-left:2px solid #2fbfff55;
-    word-wrap:break-word; }
-  #textBody .msg.user { border-color:#ff8a4f88; color:#9fe8ff; }
-  #textBody .msg:first-child { margin-top:0; }
-  #imgStrip { display:none; gap:10px; justify-content:center; margin-bottom:10px; flex-wrap:wrap; }
-  #imgStrip img { max-height:150px; max-width:32%; border-radius:8px;
-    border:1px solid #2fbfff66; object-fit:cover; }
-  #zoomBar { position:absolute; bottom:64px; right:16px; display:flex; gap:6px; z-index:10; }
-  #zoomBar button {
-    background:#0d2c3d; border:1px solid #2fbfff88; color:#4fd8ff; border-radius:8px;
-    width:38px; height:32px; font-size:16px; cursor:pointer;
-  }
-  #inputBar {
-    position:absolute; bottom:16px; left:16px; right:16px; display:flex; gap:8px; z-index:10;
-  }
-  #inputBar input {
-    flex:1; background:rgba(10,20,30,0.75); border:1px solid #2fbfff55; border-radius:8px;
-    color:#c7f5ff; font-size:14px; font-family:var(--font-body); letter-spacing:.4px;
-    padding:10px 14px; outline:none;
-  }
-  #inputBar input:focus-visible { border-color:#4fd8ff; box-shadow:0 0 0 2px #4fd8ff55; }
-  #inputBar input::placeholder { color:#7fdfff66; }
-  #inputBar button {
-    background:#0d2c3d; border:1px solid #2fbfff88; color:#4fd8ff; border-radius:8px;
-    padding:0 18px; font-size:13px; letter-spacing:1px; cursor:pointer;
-  }
-  #inputBar button:hover { background:#123a52; }
-  #cmdBtn { padding:0 14px !important; }
-  #helpOverlay {
-    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
-    width:min(640px,92%); max-height:76%; overflow-y:auto; z-index:30; display:none;
-    background:rgba(6,12,20,.96); border:1px solid #2fbfff88; border-radius:14px;
-    padding:20px 24px; color:#c7f5ff;
-    box-shadow:0 0 60px rgba(79,216,255,.2);
-    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-  }
-  #helpOverlay h2 { margin:0 0 10px; font-size:16px; letter-spacing:3px; color:#4fd8ff;
-    font-family:var(--font-display); }
-  #helpOverlay h3 { margin:14px 0 4px; font-size:13px; letter-spacing:2px; color:#9fe8ff;
-    font-family:var(--font-display); }
-  #helpOverlay .cmd { font-size:13px; margin:3px 0; color:#d8f6ff; }
-  #helpOverlay .cmd b { color:#4fd8ff; font-weight:normal; }
-  #helpOverlay .cmd span { color:#7fdfff99; }
-  #helpClose { position:absolute; top:10px; right:14px; cursor:pointer; color:#7fdfff;
-    font-size:15px; border:none; background:none; }
-  #vitals {
-    position:absolute; top:16px; right:16px; color:#7fdfff; font-size:12px;
-    background:rgba(10,20,30,0.5); border:1px solid #2fbfff33; border-radius:8px;
-    padding:10px 14px; min-width:150px; z-index:10;
-  }
-  #vitals div { display:flex; justify-content:space-between; margin:2px 0; }
-  #vitals span.val { color:#c7f5ff; font-weight:bold; }
-  #vitals .bar { height:4px; background:#123a52; border-radius:2px; margin:2px 0 4px; overflow:hidden; }
-  #vitals .bar i { display:block; height:100%; background:#4fd8ff; }
-  #objLabel {
-    position:absolute; top:74px; left:0; right:0; text-align:center;
-    color:#4fd8ff; font-size:13px; letter-spacing:3px; font-family:var(--font-display);
-    text-shadow:0 0 6px #4fd8ff; display:none; z-index:10; pointer-events:none;
-  }
-  #objSub { font-size:11px; letter-spacing:1px; color:#9fe8ff; }
-  canvas { display:block; touch-action:none; }
-  @media (max-width:640px) {
-    #vitals { min-width:110px; font-size:11px; }
-    #textPanel { width:auto; right:16px; }
-  }
-  @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+:root{
+  --background:#0b1116; --foreground:#eef4f6; --card:#121a21; --card-foreground:#eef4f6;
+  --popover:#0e151c; --popover-foreground:#eef4f6; --primary:#4fd8ff; --primary-foreground:#06222e;
+  --secondary:#16212a; --secondary-foreground:#c7d6dd; --muted:#1a242e; --muted-foreground:#8fa6b1;
+  --accent:#ffb84f; --accent-foreground:#2a1a05; --destructive:#f26d64; --border:#2fbfff33;
+  --input:#1c2833; --ring:#4fd8ff; --line:rgba(127,223,255,.09);
+  --font-sans:"DM Sans",system-ui,sans-serif; --font-mono:"Space Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}html{background:var(--background)}
+body{margin:0;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px}
+button,input,textarea{font:inherit}button{color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.skip-link{position:fixed;left:16px;top:-60px;z-index:100;background:var(--primary);color:var(--primary-foreground);padding:10px 14px;border-radius:6px}
+.skip-link:focus{top:16px}
+.app-shell{min-height:100vh;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:64px 64px}
+.sidebar{position:fixed;inset:0 auto 0 0;width:244px;background:rgba(11,17,22,.94);border-right:1px solid var(--border);padding:22px 16px;display:flex;flex-direction:column;z-index:40}
+.brand{height:50px;display:flex;align-items:center;gap:11px;padding:0 8px;margin-bottom:24px}
+.brand-mark{width:34px;height:34px;border:1px solid rgba(79,216,255,.5);display:grid;place-items:center;border-radius:7px;color:var(--primary);font:700 13px var(--font-mono);box-shadow:inset 0 0 18px rgba(79,216,255,.09)}
+.brand strong,.brand small{display:block}.brand strong{font-size:14px}.brand small{font-size:11px;color:var(--muted-foreground);margin-top:2px}
+.sidebar nav{display:flex;flex-direction:column;gap:3px}
+.nav-link{display:flex;align-items:center;gap:12px;height:40px;padding:0 11px;color:var(--muted-foreground);border-radius:6px;font-size:13px;font-weight:500;background:none;border:0;width:100%;text-align:left}
+.nav-link:hover{color:var(--foreground);background:rgba(22,33,42,.7)}
+.nav-active{color:var(--primary);background:rgba(79,216,255,.09);box-shadow:inset 2px 0 var(--primary)}
+.sidebar-bottom{margin-top:auto;border-top:1px solid var(--border);padding-top:16px}
+.privacy-line{font:10px var(--font-mono);text-transform:uppercase;color:var(--muted-foreground);display:flex;gap:8px;align-items:center;padding:0 9px 14px}
+.status-dot{width:6px;height:6px;background:var(--primary);border-radius:50%;box-shadow:0 0 8px rgba(79,216,255,.6);display:inline-block;flex:none}
+.status-dot.bad{background:var(--destructive);box-shadow:0 0 8px rgba(242,109,100,.6)}
+.profile-button{border:0;background:transparent;width:100%;display:flex;align-items:center;gap:10px;padding:4px 8px;text-align:left}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--secondary);display:grid;place-items:center;font:700 12px var(--font-mono);color:var(--primary);flex:none}
+.profile-button strong{font-size:13px;display:block}.profile-button small{font-size:11px;color:var(--muted-foreground);display:block}
+.app-main{margin-left:244px}
+.topbar{height:70px;display:flex;align-items:center;gap:14px;padding:0 28px;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(11,17,22,.9);z-index:30;backdrop-filter:blur(10px)}
+.top-context{display:flex;align-items:center;gap:8px;font:11px var(--font-mono);color:var(--muted-foreground)}
+.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.button{border:1px solid var(--border);background:var(--card);color:var(--foreground);border-radius:6px;padding:0 14px;height:38px;display:inline-flex;align-items:center;gap:8px;font-size:13px}
+.button:hover{border-color:var(--primary)}
+.button-primary{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground);font-weight:700}
+.button-icon{width:38px;padding:0;justify-content:center;background:transparent}
+.button-ghost{background:transparent}
+.button kbd{font:10px var(--font-mono);color:var(--muted-foreground);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.menu-button{display:none}
+main{min-height:calc(100vh - 70px)}
+.home-stage{display:grid;grid-template-columns:minmax(0,1fr) 350px;min-height:calc(100vh - 70px)}
+.assistant-zone{padding:42px 44px 48px;min-width:0}
+.eyebrow{font:10px var(--font-mono);color:var(--primary);text-transform:uppercase;letter-spacing:.08em;margin:0 0 9px}
+.assistant-heading{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}
+.assistant-heading h1{font-size:clamp(28px,4vw,44px);font-weight:500;margin:0;line-height:1.05}
+.assistant-heading p{color:var(--muted-foreground);font-size:14px;margin:10px 0 0}
+.state-badge{white-space:nowrap;height:26px;display:inline-flex;gap:8px;align-items:center;border:1px solid var(--border);border-radius:99px;padding:0 12px;color:var(--muted-foreground);font:10px var(--font-mono);text-transform:uppercase;flex:none}
+.core-stage{height:340px;position:relative;display:grid;place-items:center;margin-top:8px}
+#threeMount{position:absolute;inset:0}
+#threeMount canvas{width:100%!important;height:100%!important;display:block;touch-action:none}
+.core-caption{position:absolute;bottom:6px;left:0;right:0;text-align:center;pointer-events:none}
+.core-caption span{font:700 15px var(--font-mono);color:var(--primary);display:block;letter-spacing:2px}
+.core-caption small{font-size:10px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.08em}
+.zoombar{position:absolute;right:6px;bottom:34px;display:flex;gap:6px;z-index:5}
+.zoombar button{width:34px;height:30px;background:rgba(10,20,30,.8);border:1px solid var(--border);border-radius:6px;color:var(--primary);font-size:14px}
+.conversation{margin-top:18px;display:flex;flex-direction:column;gap:12px;max-height:380px;overflow-y:auto}
+.message{border:1px solid var(--border);border-radius:8px;padding:14px 16px;background:rgba(18,26,33,.6)}
+.message.user{border-color:rgba(255,184,79,.35)}
+.message-meta{display:flex;gap:10px;font:10px var(--font-mono);color:var(--muted-foreground);text-transform:uppercase;margin-bottom:8px}
+.message-text{font-size:14px;line-height:1.65;white-space:pre-wrap;word-wrap:break-word}
+.message-text img{max-height:150px;max-width:32%;border-radius:8px;border:1px solid var(--border);object-fit:cover;margin:0 8px 8px 0}
+.message-actions{display:flex;gap:6px;margin-top:10px}
+.message-actions button{background:none;border:1px solid transparent;color:var(--muted-foreground);font-size:11px;border-radius:5px;padding:3px 8px}
+.message-actions button:hover{border-color:var(--border);color:var(--foreground)}
+.message-actions button.on{color:var(--primary);border-color:var(--primary)}
+.approval-card{margin-top:12px;border:1px solid rgba(255,184,79,.45);border-radius:8px;padding:12px 14px;background:rgba(255,184,79,.05)}
+.approval-card strong{font-size:13px;display:block}
+.approval-card small{font-size:11px;color:var(--muted-foreground);display:block;margin-top:3px;word-break:break-all}
+.approval-card .row{display:flex;gap:8px;margin-top:10px}
+.composer{margin-top:14px;border:1px solid var(--border);border-radius:10px;background:var(--card);padding:10px 12px}
+.composer textarea{width:100%;background:transparent;border:0;outline:0;color:var(--foreground);resize:vertical;min-height:52px;font-size:14px}
+.composer-actions{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.composer-actions .grp{display:flex;gap:6px}
+.mic-live{color:var(--destructive)!important;border-color:var(--destructive)!important}
+.context-rail{border-left:1px solid var(--border);padding:34px 24px;background:rgba(11,17,22,.6)}
+.context-section{margin-bottom:30px}
+.section-heading{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.section-heading h2{font-size:15px;margin:0;font-weight:500}
+.section-heading .eyebrow{margin:0 0 4px}
+.section-heading>span{font:10px var(--font-mono);color:var(--muted-foreground)}
+.priority-list{display:flex;flex-direction:column;gap:8px}
+.priority-item{display:flex;gap:10px;align-items:flex-start;font-size:13px}
+.priority-item small{display:block;color:var(--muted-foreground);font-size:11px;margin-top:2px}
+.task-check{width:18px;height:18px;border:1px solid var(--border);border-radius:50%;flex:none;display:grid;place-items:center;color:var(--primary);margin-top:1px}
+.priority-item.is-done{opacity:.55}.priority-item.is-done strong{text-decoration:line-through}
+.task-done-btn{margin-left:auto;background:none;border:1px solid var(--border);border-radius:5px;color:var(--muted-foreground);font-size:11px;padding:2px 8px;flex:none}
+.task-done-btn:hover{color:var(--primary);border-color:var(--primary)}
+.mini-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.mini-metrics>div{border:1px solid var(--border);border-radius:6px;padding:8px 10px}
+.mini-metrics span{font-size:10px;color:var(--muted-foreground);display:block}
+.mini-metrics strong{font-size:14px;font-family:var(--font-mono)}
+.progress-track{height:5px;background:var(--muted);border-radius:3px;overflow:hidden;margin:10px 0}
+.progress-track>span{display:block;height:100%;background:var(--primary);width:0;transition:width .3s}
+.task-detail{font-size:12px}.task-detail small{display:block;color:var(--muted-foreground);margin-top:3px}
+.task-buttons{display:flex;gap:8px;margin-top:10px}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.quick-grid button{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;text-align:left;color:var(--foreground)}
+.quick-grid button:hover{border-color:var(--primary)}
+.meter{height:4px;background:var(--muted);border-radius:2px;overflow:hidden;margin:3px 0 8px}
+.meter>i{display:block;height:100%;background:var(--primary)}
+.kv{font-size:12px;color:var(--secondary-foreground);margin:2px 0}
+.kv b{color:var(--foreground);font-weight:500}
+.headline{font-size:12px;margin:5px 0;color:var(--secondary-foreground)}
+.page-stage{max-width:1120px;margin:0 auto;padding:46px 42px 70px}
+.fact-row{display:flex;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid var(--border);font-size:13px}
+.fact-row small{color:var(--muted-foreground)}
+.fact-row button{background:none;border:1px solid var(--border);border-radius:5px;color:var(--muted-foreground);font-size:11px;padding:2px 8px}
+.dialog-layer{position:fixed;inset:0;z-index:80;background:rgba(4,8,12,.68);display:flex;justify-content:center;align-items:flex-start;padding-top:12vh}
+.command-dialog{width:min(600px,calc(100vw - 28px));background:var(--popover);border:1px solid var(--border);border-radius:8px;box-shadow:0 24px 80px rgba(0,0,0,.44);overflow:hidden;max-height:70vh;display:flex;flex-direction:column}
+.command-input{height:60px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--border);color:var(--primary);flex:none}
+.command-input input{flex:1;background:transparent;border:0;outline:0;color:var(--foreground)}
+.command-content{padding:10px;overflow-y:auto}
+.command-label{font:9px var(--font-mono);text-transform:uppercase;color:var(--muted-foreground);padding:0 8px}
+.command-content button{border:0;background:transparent;width:100%;display:flex;justify-content:space-between;gap:10px;padding:10px;border-radius:5px;text-align:left;color:var(--foreground);font-size:13px}
+.command-content button:hover{background:var(--secondary)}
+.command-content button small{color:var(--muted-foreground);flex:none}
+.scrim{display:none}
+.animate-page-in{animation:page-in .35s ease-out both}
+@keyframes page-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(max-width:1050px){.home-stage{grid-template-columns:1fr}.context-rail{border-left:0;border-top:1px solid var(--border)}}
+@media(max-width:760px){.sidebar{transform:translateX(-100%);transition:transform .24s ease;width:min(280px,86vw);box-shadow:0 24px 80px rgba(0,0,0,.44)}.sidebar-open{transform:none}.scrim{display:block;position:fixed;inset:0;z-index:35;border:0;background:rgba(4,8,12,.65)}.app-main{margin-left:0}.topbar{padding:0 16px;height:62px}.menu-button{display:inline-flex}.assistant-zone{padding:28px 18px 32px}.core-stage{height:280px}}
+@media(max-width:420px){.quick-grid{grid-template-columns:1fr 1fr}.assistant-heading h1{font-size:29px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 </style>
 </head>
 <body>
-<div id="landing">
-  <div class="logo">47</div>
-  <p id="landingSub">SAY "HI 47" OR TYPE BELOW</p>
-</div>
-<div id="miniLogo">47<div id="miniRow"><span id="liveDot"></span> <span>LIVE</span> <span>FPS <span id="hudFps">--</span></span> <span id="hudObj">OBJ:47</span></div></div>
-<div id="leftPanel" aria-live="polite">
-  <div class="sideSec" style="margin-top:0">LAPTOP LIVE</div>
-  <div id="l-sys" style="font-size:12px">--</div>
-  <div class="sideSec">PROCESSES</div>
-  <div id="l-procs" style="font-size:12px">--</div>
-  <div class="sideSec">DRIVES</div>
-  <div id="l-drives" style="font-size:12px">--</div>
-  <div class="sideSec">LEARNING</div>
-  <div id="l-learn" style="font-size:12px">--</div>
-</div>
-<div id="sidePanel" aria-live="polite">
-  <div id="s-clock">--:--</div>
-  <div id="s-date">--</div>
-  <div class="sideSec">SYSTEM</div>
-  <div id="s-sys" style="font-size:12px">CPU -- · RAM -- · Disk --</div>
-  <div class="sideSec">TASKS</div>
-  <div id="s-tasks" style="font-size:12px">--</div>
-  <div class="sideSec" style="margin-top:18px">WORLD · LIVE</div>
-  <div id="s-brief"><div>Briefing loads on start…</div></div>
-</div>
-<div class="corner" id="c1"></div><div class="corner" id="c2"></div><div class="corner" id="c3"></div><div class="corner" id="c4"></div>
-<div id="vitals" aria-live="polite">
-  <div>CPU <span class="val" id="v-cpu">--%</span></div><div class="bar"><i id="b-cpu"></i></div>
-  <div>RAM <span class="val" id="v-ram">--%</span></div><div class="bar"><i id="b-ram"></i></div>
-  <div>Disk <span class="val" id="v-disk">--%</span></div><div class="bar"><i id="b-disk"></i></div>
-  <div>Battery <span class="val" id="v-batt">--%</span></div>
-  <div style="margin-top:6px; border-top:1px solid #2fbfff33; padding-top:6px;">
-    Active: <span class="val" id="v-window">--</span>
+<a href="#main-content" class="skip-link">Skip to content</a>
+<div class="app-shell">
+<aside class="sidebar" id="sidebar" aria-label="Primary">
+  <div class="brand"><span class="brand-mark">47</span><div><strong>Forty Seven</strong><small>Personal intelligence</small></div></div>
+  <nav aria-label="Primary" id="mainNav">
+    <button class="nav-link nav-active" data-view="overview">Overview</button>
+    <button class="nav-link" data-view="tasks">Tasks</button>
+    <button class="nav-link" data-view="memory">Memory</button>
+    <button class="nav-link" data-view="activity">Activity</button>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="privacy-line"><span class="status-dot" id="sideDot"></span><span id="privacyLine">Local-first · keyless chat off</span></div>
+    <div class="profile-button"><span class="avatar">47</span><span><strong>Operator</strong><small>This machine only</small></span></div>
   </div>
+</aside>
+<div class="app-main">
+<header class="topbar">
+  <button class="button button-icon menu-button" id="menuBtn" aria-label="Open menu">☰</button>
+  <div class="top-context"><span class="status-dot" id="liveDot"></span><span id="topStatus">47 is ready</span></div>
+  <div class="top-actions">
+    <button class="button" id="paletteBtn"><span>Ask or find</span><kbd>Ctrl K</kbd></button>
+    <button class="button button-icon" id="micBtn" aria-label="Voice input">Mic</button>
+  </div>
+</header>
+<main id="main-content">
+<div class="home-stage animate-page-in" data-viewpanel="overview">
+  <section class="assistant-zone" aria-labelledby="assistant-title">
+    <div class="assistant-heading">
+      <div><p class="eyebrow" id="dateLine">Today</p><h1 id="assistant-title">Good evening.</h1>
+      <p>What would you like to make progress on?</p></div>
+      <span class="state-badge"><span class="status-dot" id="stateDot"></span><span id="stateText">Ready</span></span>
+    </div>
+    <div class="core-stage"><div id="threeMount"></div>
+      <div class="core-caption"><span id="coreObj">47</span><strong id="coreState">Standing by</strong><small id="coreSub">Local interface</small></div>
+      <div class="zoombar"><button id="zoomIn" title="Zoom in">+</button><button id="zoomOut" title="Zoom out">−</button><button id="zoomReset" title="Reset view">⟡</button></div>
+    </div>
+    <div class="conversation" id="convo" aria-live="polite"></div>
+    <div class="composer">
+      <textarea id="typedInput" rows="2" placeholder="Ask 47 anything…" aria-label="Message 47"></textarea>
+      <div class="composer-actions">
+        <div class="grp"><span class="kv" id="micNote">Mic uses this browser's speech recognition</span></div>
+        <div class="grp"><button class="button button-primary" id="sendBtn">Send</button></div>
+      </div>
+    </div>
+  </section>
+  <aside class="context-rail" aria-label="Today and active work">
+    <section class="context-section"><div class="section-heading"><div><p class="eyebrow">Today</p><h2>What matters now</h2></div><span id="taskCount">– open</span></div>
+      <div class="priority-list" id="taskList"></div>
+      <div class="mini-metrics"><div><span>Focus</span><strong id="m-clock">--:--</strong></div><div><span>Date</span><strong id="m-date" style="font-size:11px">--</strong></div></div>
+    </section>
+    <section class="context-section"><div class="section-heading"><div><p class="eyebrow">Active task</p><h2 id="activeTitle">Nothing running</h2></div><span class="state-badge" id="activeBadge" style="display:none">Working</span></div>
+      <p class="kv" id="activeStep">Idle — plans and approvals appear here.</p>
+      <div class="progress-track"><span id="activeBar"></span></div>
+      <div class="task-buttons"><button class="button" id="activeCancel">Cancel</button></div>
+    </section>
+    <section class="context-section"><div class="section-heading"><div><p class="eyebrow">Quick actions</p><h2>Move something forward</h2></div></div>
+      <div class="quick-grid" id="quickGrid"></div>
+    </section>
+    <section class="context-section"><div class="section-heading"><div><p class="eyebrow">System</p><h2>This laptop</h2></div><span id="v-window">--</span></div>
+      <div class="kv">CPU <b id="v-cpu">--</b></div><div class="meter"><i id="b-cpu"></i></div>
+      <div class="kv">RAM <b id="v-ram">--</b></div><div class="meter"><i id="b-ram"></i></div>
+      <div class="kv">Disk <b id="v-disk">--</b> · Batt <b id="v-batt">--</b></div>
+      <div class="kv" id="l-extra">--</div>
+    </section>
+    <section class="context-section"><div class="section-heading"><div><p class="eyebrow">World</p><h2>Live headlines</h2></div></div>
+      <div id="s-brief"><div class="headline">Briefing loads on start…</div></div>
+    </section>
+    <section class="context-section"><div class="section-heading"><div><p class="eyebrow">Learning</p><h2>Memory</h2></div></div>
+      <div class="kv" id="l-learn">--</div>
+    </section>
+  </aside>
 </div>
-<div id="objLabel"></div>
-<div id="textPanel" aria-live="polite"><button id="textClose" title="Dismiss">✕</button><div id="imgStrip"></div><span id="textBody"></span></div>
-<div id="zoomBar"><button id="zoomIn" title="Zoom in">+</button><button id="zoomOut" title="Zoom out">−</button><button id="zoomReset" title="Reset view">⟡</button></div>
-<div id="inputBar">
-  <input id="typedInput" type="text" placeholder="Type a command or data for 47 (no wake word needed here)…" autocomplete="off">
-  <button id="cmdBtn" title="What 47 can do">?</button>
-  <button id="sendBtn">SEND</button>
+<div class="page-stage animate-page-in" data-viewpanel="tasks" hidden>
+  <div class="page-heading"><div><p class="eyebrow">Tasks</p><h1>Priorities, without the noise.</h1><p class="page-description">Complete with one click. Add via the composer: "remind me …".</p></div></div>
+  <div class="priority-list" id="tasksFull" style="margin-top:20px"></div>
 </div>
-<div id="helpOverlay" aria-live="polite">
-  <button id="helpClose" title="Close">✕</button>
-  <h2>WHAT 47 CAN DO</h2>
-  <div id="helpBody">Loading…</div>
+<div class="page-stage animate-page-in" data-viewpanel="memory" hidden>
+  <div class="page-heading"><div><p class="eyebrow">Memory</p><h1>What 47 remembers.</h1><p class="page-description">Delete anything. Export a copy anytime.</p></div><div><button class="button" id="memExport">Export</button></div></div>
+  <div class="kv" id="memStats" style="margin:16px 0"></div>
+  <div id="factsFull"></div>
 </div>
-
+<div class="page-stage animate-page-in" data-viewpanel="activity" hidden>
+  <div class="page-heading"><div><p class="eyebrow">Activity</p><h1>Audit trail.</h1><p class="page-description">Every tool call and approval, newest last.</p></div></div>
+  <div id="auditFull" style="margin-top:16px"></div>
+</div>
+</main>
+</div>
+<button class="scrim" id="scrim" aria-label="Close menu"></button>
+<div class="dialog-layer" id="paletteLayer" hidden><div class="command-dialog" role="dialog" aria-modal="true" aria-label="Command palette"><div class="command-input"><span>⌘</span><input id="paletteInput" placeholder="Ask 47 or search commands…" aria-label="Command"><kbd>esc</kbd></div><div class="command-content" id="paletteBody"><p class="command-label">Loading…</p></div></div></div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"}}</script>
 <script type="module">import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'; window.GLTFLoader = GLTFLoader;</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 <script>
-// ---------- Three.js scene setup ----------
+// ---------- 47 engine (Three.js scene; identical behavior, Lovable chrome) ----------
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
 camera.position.set(0, 6, 18);
-
-// PERF NOTE: this scene is a handful of low-poly boxes/spheres/tubes with no
-// shadows and no post-processing, which any Iris Xe (or newer) integrated
-// GPU renders at 60fps without breaking a sweat — the visuals are NOT being
-// downgraded. The one real waste on a laptop is devicePixelRatio: many 1080p/
-// 1440p laptop panels report 1.5-3x scaling, which makes the iGPU render
-// (and discard) 2-9x the pixels for zero visible difference at this scene's
-// detail level. Capping that, plus a small adaptive step that only engages
-// if frames genuinely start dropping (never preemptively), keeps full
-// quality by default and only backs off if the hardware actually needs it.
 const MAX_PIXEL_RATIO = 1.5;
 let currentPixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
-
+const mount = document.getElementById('threeMount');
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(currentPixelRatio);
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// Adaptive quality: only steps DOWN if frame time is consistently bad (drop
-// antialiasing first, then pixel ratio), and steps back UP once things
-// recover — so a capable iGPU always ends up back at full quality.
+mount.appendChild(renderer.domElement);
+function sizeRenderer() {
+  const w = mount.clientWidth || 600, h = mount.clientHeight || 340;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+sizeRenderer();
 let aaEnabled = true;
 let frameTimes = [];
 function trackFrameTime(deltaMs) {
   frameTimes.push(deltaMs);
-  if (frameTimes.length < 90) return; // ~1.5s at 60fps before judging anything
+  if (frameTimes.length < 90) return;
   const avg = frameTimes.reduce((a,b) => a+b, 0) / frameTimes.length;
   frameTimes = [];
-  if (avg > 33 && currentPixelRatio > 1) { // sustained <30fps
+  if (avg > 33 && currentPixelRatio > 1) {
     currentPixelRatio = Math.max(1, currentPixelRatio - 0.5);
     renderer.setPixelRatio(currentPixelRatio);
-  } else if (avg < 18 && currentPixelRatio < MAX_PIXEL_RATIO) { // comfortably >55fps, room to spare
+  } else if (avg < 18 && currentPixelRatio < MAX_PIXEL_RATIO) {
     currentPixelRatio = Math.min(MAX_PIXEL_RATIO, currentPixelRatio + 0.5);
     renderer.setPixelRatio(currentPixelRatio);
   }
 }
-
 const ambientLight = new THREE.AmbientLight(0x224466, 1.2);
 scene.add(ambientLight);
 const point = new THREE.PointLight(0x4fd8ff, 1.5, 100);
 point.position.set(10, 15, 10);
 scene.add(point);
-
-// Rotating holographic-style grid floor (visual only, not a hologram projection)
 const grid = new THREE.GridHelper(40, 40, 0x1fbfff, 0x113344);
 grid.position.y = -2;
 scene.add(grid);
-
 let dataGroup = new THREE.Group();
 scene.add(dataGroup);
 let autoRotate = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-
-// Free custom orbit controls (no CDN dependency — always works):
-// left-drag rotates, wheel/pinch zooms, right-drag pans. Free access.
 let controls = null;
 (function initFreeControls() {
   const el = renderer.domElement;
@@ -288,14 +300,12 @@ let controls = null;
   el.addEventListener('touchstart', (e) => {
     autoRotate = false;
     if (e.touches.length === 2) {
-      pinchD = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
-                           e.touches[0].clientY - e.touches[1].clientY);
+      pinchD = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
     } else { lx = e.touches[0].clientX; ly = e.touches[0].clientY; }
   }, { passive: true });
   el.addEventListener('touchmove', (e) => {
     if (e.touches.length === 2) {
-      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
-                            e.touches[0].clientY - e.touches[1].clientY);
+      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       const len = camera.position.length();
       const nl = Math.max(6, Math.min(45, len * (pinchD / (d || pinchD))));
       camera.position.multiplyScalar(nl / len);
@@ -307,7 +317,6 @@ let controls = null;
     }
   }, { passive: true });
 })();
-
 function clearGroup() {
   emblemRings = [];
   dataGroup.traverse((o) => {
@@ -322,14 +331,18 @@ function clearGroup() {
     }
   });
   while (dataGroup.children.length) dataGroup.remove(dataGroup.children[0]);
-  document.getElementById('objLabel').style.display = 'none';
+  setCoreCaption('47', 'Standing by');
 }
-
 function glowMat(hex, emissiveHex) {
   return new THREE.MeshStandardMaterial({ color: hex, emissive: emissiveHex || 0x0a2a3a, metalness: 0.35, roughness: 0.4 });
 }
-
-// ---------- Visualization builders: data ----------
+function setCoreCaption(obj, state) {
+  document.getElementById('coreObj').textContent = obj;
+  document.getElementById('coreState').textContent = state;
+}
+function labelObject(text, sub) {
+  setCoreCaption(text, sub || '3d object');
+}
 function renderBars(payload) {
   clearGroup();
   autoRotate = true;
@@ -337,7 +350,6 @@ function renderBars(payload) {
   const max = Math.max(...values, 1);
   const spacing = 2.2;
   const startX = -((values.length - 1) * spacing) / 2;
-
   values.forEach((v, i) => {
     const height = (v / max) * 8 + 0.5;
     const geo = new THREE.BoxGeometry(1.2, height, 1.2);
@@ -350,11 +362,10 @@ function renderBars(payload) {
     dataGroup.add(bar);
   });
 }
-
 function renderNetwork(payload) {
   clearGroup();
   autoRotate = true;
-  const { nodes } = payload; // [{id, x?, y?, z?}], edges optional
+  const { nodes } = payload;
   const positions = [];
   nodes.forEach((n, i) => {
     const angle = (i / nodes.length) * Math.PI * 2;
@@ -373,27 +384,6 @@ function renderNetwork(payload) {
     dataGroup.add(new THREE.Line(geo, mat));
   }
 }
-
-// ---------- Visualization builders: generic 3D "objects" ----------
-// NOTE (see visual3d.py): these are labeled, parametric, category-level
-// representations — not literal/accurate models of whatever you named.
-function labelObject(text, sub) {
-  const el = document.getElementById('objLabel');
-  el.innerHTML = '';
-  const main = document.createElement('div');
-  main.textContent = text;
-  el.appendChild(main);
-  if (sub) {
-    const s = document.createElement('div');
-    s.id = 'objSub';
-    s.textContent = sub;
-    el.appendChild(s);
-  }
-  el.style.display = 'block';
-  const typeEl = document.getElementById('hudObj');
-  if (typeEl) typeEl.textContent = 'OBJ:' + text.slice(0, 24);
-}
-
 function renderBuilding(payload) {
   clearGroup();
   autoRotate = true;
@@ -407,7 +397,6 @@ function renderBuilding(payload) {
     const box = new THREE.Mesh(geo, mat);
     box.position.set(0, -2 + floorH/2 + i * floorH, 0);
     dataGroup.add(box);
-    // lit "windows" — small emissive dots on each face (s0:+x s1:+z s2:-x s3:-z)
     const rots = [Math.PI/2, 0, -Math.PI/2, Math.PI];
     for (let s = 0; s < 4; s++) {
       const wx = (s % 2 === 0) ? (s === 0 ? w/2 + 0.01 : -w/2 - 0.01) : 0;
@@ -425,12 +414,10 @@ function renderBuilding(payload) {
   roof.position.set(0, -2 + floors * floorH + 0.2, 0);
   dataGroup.add(roof);
 }
-
 function renderTool(payload) {
   clearGroup();
   autoRotate = true;
   labelObject(payload.label || 'Tool', 'tool · handle + head');
-  // abstract handle + head, evokes a wrench/hammer without claiming accuracy
   const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 6, 24), glowMat(0x8899aa, 0x111a22));
   handle.rotation.z = Math.PI / 5;
   dataGroup.add(handle);
@@ -439,7 +426,6 @@ function renderTool(payload) {
   head.rotation.x = Math.PI / 2;
   dataGroup.add(head);
 }
-
 function renderVehicle(payload) {
   clearGroup();
   autoRotate = true;
@@ -457,7 +443,6 @@ function renderVehicle(payload) {
     dataGroup.add(wheel);
   });
 }
-
 function renderMapPath(payload) {
   clearGroup();
   autoRotate = false;
@@ -469,8 +454,6 @@ function renderMapPath(payload) {
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -1.90;
   dataGroup.add(ground);
-
-  // A glowing winding path across the ground with a couple of "pins"
   const pathPoints = [];
   const segments = 12;
   for (let i = 0; i <= segments; i++) {
@@ -482,7 +465,6 @@ function renderMapPath(payload) {
   const curve = new THREE.CatmullRomCurve3(pathPoints);
   const tubeGeo = new THREE.TubeGeometry(curve, 64, 0.12, 8, false);
   dataGroup.add(new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: 0x4fd8ff })));
-
   [['START', pathPoints[0]], ['END', pathPoints[pathPoints.length - 1]]].forEach(([tag, p]) => {
     const pin = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.2, 16), glowMat(0xff8a4f, 0x3a1a0a));
     pin.position.set(p.x, p.y + 0.9, p.z);
@@ -492,7 +474,6 @@ function renderMapPath(payload) {
     dataGroup.add(new THREE.Line(stemGeo, new THREE.LineBasicMaterial({ color: 0xff8a4f })));
   });
 }
-
 function renderElectronics(payload) {
   clearGroup();
   autoRotate = true;
@@ -506,7 +487,6 @@ function renderElectronics(payload) {
   screen.position.z = 0.16;
   dataGroup.add(screen);
 }
-
 function renderNature(payload) {
   clearGroup();
   autoRotate = true;
@@ -520,7 +500,6 @@ function renderNature(payload) {
     dataGroup.add(foliage);
   });
 }
-
 function renderFurniture(payload) {
   clearGroup();
   autoRotate = true;
@@ -534,7 +513,6 @@ function renderFurniture(payload) {
     dataGroup.add(leg);
   });
 }
-
 function renderGeneric(payload) {
   clearGroup();
   autoRotate = true;
@@ -548,7 +526,6 @@ function renderGeneric(payload) {
   wire.scale.setScalar(1.02);
   dataGroup.add(wire);
 }
-
 let emblemRings = [];
 function renderEmblem(payload) {
   clearGroup();
@@ -557,6 +534,7 @@ function renderEmblem(payload) {
   labelObject('assistant core', 'online');
   const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1.6, 1), glowMat(0x4fd8ff, 0x0a3a4a));
   dataGroup.add(core);
+  window.__coreMesh = core;
   const wire = new THREE.Mesh(new THREE.IcosahedronGeometry(1.66, 1),
     new THREE.MeshBasicMaterial({ color: 0xc7f5ff, wireframe: true, transparent: true, opacity: 0.35 }));
   dataGroup.add(wire);
@@ -568,7 +546,6 @@ function renderEmblem(payload) {
     emblemRings.push(ring);
   });
 }
-
 let modelLoader = null;
 function renderModel(payload) {
   clearGroup();
@@ -595,7 +572,6 @@ function renderModel(payload) {
     undefined,
     () => renderGeneric(payload));
 }
-
 function renderObject3D(payload) {
   const type = payload.type;
   if (type === 'building') renderBuilding(payload);
@@ -608,236 +584,539 @@ function renderObject3D(payload) {
   else if (type === 'emblem') renderEmblem(payload);
   else renderGeneric(payload);
 }
-
-function showText(payload) {
-  // Conversation history: append, never overwrite (cap 60 blocks).
-  const panel = document.getElementById('textPanel');
-  panel.style.display = 'block';
-  const body = document.getElementById('textBody');
-  const txt = payload.content || '';
-  const div = document.createElement('div');
-  div.className = 'msg' + (txt.startsWith('You typed:') ? ' user' : '');
-  div.textContent = txt;
-  body.appendChild(div);
-  while (body.children.length > 60) body.removeChild(body.firstChild);
-  const strip = document.getElementById('imgStrip');
-  strip.innerHTML = '';
-  const imgs = payload.images || [];
-  imgs.forEach((src) => {
-    const im = document.createElement('img');
-    im.src = src;
-    im.alt = 'enquiry photo';
-    strip.appendChild(im);
-  });
-  strip.style.display = imgs.length ? 'flex' : 'none';
-  panel.scrollTop = panel.scrollHeight;
+// ---------- app state + conversation ----------
+const STATES = ['idle','listening','thinking','working','speaking','success','error','offline','permission'];
+function setState(s) {
+  const badge = document.getElementById('stateText');
+  if (badge) badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+  const cap = document.getElementById('coreState');
+  if (cap && (s === 'idle' || s === 'listening' || s === 'thinking' || s === 'working')) {
+    cap.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  const core = window.__coreMesh;
+  if (core && core.material && core.material.emissive) {
+    const colors = { idle: 0x0a3a4a, listening: 0x0a4a2a, thinking: 0x3a2a0a,
+      working: 0x0a2a3a, speaking: 0x0a3a4a, success: 0x0a4a1a,
+      error: 0x4a0a0a, offline: 0x222222, permission: 0x3a2a0a };
+    core.material.emissive.setHex(colors[s] !== undefined ? colors[s] : 0x0a3a4a);
+  }
 }
-document.getElementById('textClose').addEventListener('click', () => {
-  document.getElementById('textPanel').style.display = 'none';
-});
-
+function nowTime() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function addMessage(who, text, images) {
+  const convo = document.getElementById('convo');
+  const div = document.createElement('div');
+  div.className = 'message' + (who === 'you' ? ' user' : ' assistant-message');
+  const meta = document.createElement('div');
+  meta.className = 'message-meta';
+  const a = document.createElement('span');
+  a.textContent = who === 'you' ? 'You' : '47';
+  const b = document.createElement('span');
+  b.textContent = nowTime();
+  meta.appendChild(a);
+  meta.appendChild(b);
+  div.appendChild(meta);
+  if (images && images.length) {
+    const strip = document.createElement('div');
+    strip.style.cssText = 'display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap';
+    images.forEach((src) => {
+      const im = document.createElement('img');
+      im.src = src;
+      im.alt = 'enquiry photo';
+      im.style.cssText = 'max-height:150px;max-width:32%;border-radius:8px;border:1px solid var(--border);object-fit:cover';
+      strip.appendChild(im);
+    });
+    div.appendChild(strip);
+  }
+  const p = document.createElement('div');
+  p.className = 'message-text';
+  p.textContent = text || '';
+  div.appendChild(p);
+  if (who === '47') {
+    const acts = document.createElement('div');
+    acts.className = 'message-actions';
+    [['Helpful', 'helpful'], ['Not helpful', 'not-helpful'], ['Copy', 'copy']].forEach(([label, kind]) => {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.setAttribute('aria-label', label);
+      btn.addEventListener('click', () => {
+        if (kind === 'copy') {
+          if (navigator.clipboard) navigator.clipboard.writeText(text || '');
+          btn.classList.add('on');
+          return;
+        }
+        btn.classList.add('on');
+        fetch('/api/feedback?token=' + encodeURIComponent(_47Token), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rating: kind, excerpt: (text || '').slice(0, 200) }),
+        }).catch(() => {});
+      });
+      acts.appendChild(btn);
+    });
+    div.appendChild(acts);
+  }
+  convo.appendChild(div);
+  while (convo.children.length > 60) convo.removeChild(convo.firstChild);
+  convo.scrollTop = convo.scrollHeight;
+  return div;
+}
+function addApproval(kind, command, action) {
+  setState('permission');
+  const convo = document.getElementById('convo');
+  const div = document.createElement('div');
+  div.className = 'message';
+  const meta = document.createElement('div');
+  meta.className = 'message-meta';
+  const a = document.createElement('span');
+  a.textContent = '47 · approval needed';
+  meta.appendChild(a);
+  div.appendChild(meta);
+  const card = document.createElement('div');
+  card.className = 'approval-card';
+  const info = document.createElement('div');
+  const st = document.createElement('strong');
+  st.textContent = kind === 'document' ? ('Send document to brain: ' + action) : 'Run command';
+  const sm = document.createElement('small');
+  sm.textContent = command;
+  info.appendChild(st);
+  info.appendChild(sm);
+  card.appendChild(info);
+  const row = document.createElement('div');
+  row.className = 'row';
+  const ok = document.createElement('button');
+  ok.className = 'button button-primary';
+  ok.textContent = 'Approve';
+  ok.addEventListener('click', () => { sendCommand('confirm'); card.remove(); });
+  const no = document.createElement('button');
+  no.className = 'button';
+  no.textContent = 'Deny';
+  no.addEventListener('click', () => { sendCommand('cancel'); card.remove(); });
+  row.appendChild(ok);
+  row.appendChild(no);
+  card.appendChild(row);
+  div.appendChild(card);
+  convo.appendChild(div);
+  convo.scrollTop = convo.scrollHeight;
+  setActiveTask('Awaiting approval', command.slice(0, 80), 50, 'Approval');
+}
+function setActiveTask(title, step, pct, badge) {
+  document.getElementById('activeTitle').textContent = title;
+  document.getElementById('activeStep').textContent = step;
+  document.getElementById('activeBar').style.width = Math.max(0, Math.min(100, pct)) + '%';
+  const b = document.getElementById('activeBadge');
+  b.style.display = badge ? 'inline-flex' : 'none';
+  if (badge) b.textContent = badge;
+}
+function clearActiveTask() {
+  setActiveTask('Nothing running', 'Idle — plans and approvals appear here.', 0, null);
+  setState('idle');
+}
+function showText(payload) {
+  addMessage('47', payload.content || '', payload.images || []);
+}
 function updateVitals(v) {
-  document.getElementById('v-cpu').textContent = `${v.cpu_percent}%`;
-  document.getElementById('v-ram').textContent = `${v.ram_percent}%`;
-  document.getElementById('v-disk').textContent = `${v.disk_percent}%`;
+  document.getElementById('v-cpu').textContent = v.cpu_percent + '%';
+  document.getElementById('v-ram').textContent = v.ram_percent + '%';
+  document.getElementById('v-disk').textContent = v.disk_percent + '%';
   document.getElementById('v-batt').textContent =
-    v.battery_percent !== null ? `${v.battery_percent}%${v.battery_plugged ? ' ⚡' : ''}` : 'N/A';
+    v.battery_percent !== null ? v.battery_percent + '%' + (v.battery_plugged ? ' ⚡' : '') : 'N/A';
   const setBar = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = Math.max(0, Math.min(100, pct)) + '%'; };
   setBar('b-cpu', v.cpu_percent); setBar('b-ram', v.ram_percent); setBar('b-disk', v.disk_percent);
-  const sys = document.getElementById('s-sys');
-  if (sys) sys.textContent = `CPU ${v.cpu_percent}% · RAM ${v.ram_percent}% · Disk ${v.disk_percent}%`;
+  const cores = (v.cpu_per_core || []).length;
+  const up = v.uptime_s ? Math.floor(v.uptime_s / 3600) + 'h' + Math.floor(v.uptime_s % 3600 / 60) + 'm' : '--';
+  document.getElementById('l-extra').textContent =
+    (cores ? cores + ' cores · ' : '') + 'up ' + up + ' · ↓' + (v.net_recv_mb || 0) + 'MB ↑' + (v.net_sent_mb || 0) + 'MB';
+  const procs = (v.top_procs || []).slice(0, 5).map((p) => (p.name || '?') + ' ' + (p.cpu_percent || 0).toFixed(0) + '%').join(' · ');
+  if (procs) {
+    let el = document.getElementById('l-procs');
+    if (!el) { el = document.createElement('div'); el.id = 'l-procs'; el.className = 'kv'; document.getElementById('l-extra').after(el); }
+    el.textContent = 'Top: ' + procs;
+  }
+  const drives = (v.drives || []).slice(0, 4).map((d) => d.mount + ' ' + d.free_gb + 'G free').join(' · ');
+  if (drives) {
+    let el = document.getElementById('l-drives');
+    if (!el) { el = document.createElement('div'); el.id = 'l-drives'; el.className = 'kv'; document.getElementById('l-extra').after(el); }
+    el.textContent = drives;
+  }
   if (v.tasks_open !== undefined && v.tasks_open !== null) {
-    const t = document.getElementById('s-tasks');
-    if (t) t.textContent = `${v.tasks_open} open`;
-  }
-  const ls = document.getElementById('l-sys');
-  if (ls) {
-    const cores = (v.cpu_per_core || []).length;
-    const up = v.uptime_s ? `${Math.floor(v.uptime_s / 3600)}h${Math.floor(v.uptime_s % 3600 / 60)}m` : '--';
-    ls.textContent = `CPU ${v.cpu_percent}%${cores ? ` (${cores}c)` : ''} · RAM ${v.ram_percent}% · up ${up} · net ↓${v.net_recv_mb || 0}MB ↑${v.net_sent_mb || 0}MB`;
-  }
-  const lp = document.getElementById('l-procs');
-  if (lp && v.top_procs) {
-    lp.innerHTML = '';
-    v.top_procs.slice(0, 5).forEach((p) => {
-      const d = document.createElement('div');
-      d.textContent = `${(p.name || '?').slice(0, 22)} ${(p.cpu_percent || 0).toFixed(0)}%`;
-      lp.appendChild(d);
-    });
-  }
-  const ld = document.getElementById('l-drives');
-  if (ld && v.drives) {
-    ld.innerHTML = '';
-    v.drives.slice(0, 4).forEach((d) => {
-      const el = document.createElement('div');
-      el.textContent = `${d.mount} ${d.free_gb}G free`;
-      ld.appendChild(el);
-    });
+    document.getElementById('taskCount').textContent = v.tasks_open + ' open';
   }
   const learn = (ms) => {
-    const el = document.getElementById('l-learn');
-    if (el && ms) el.textContent = `${ms.facts || 0} facts · ${ms.tasks_done || 0} done · ${ms.turns || 0} turns · ${ms.db_kb || 0}KB`;
+    if (!ms) return;
+    document.getElementById('l-learn').textContent =
+      (ms.facts || 0) + ' facts · ' + (ms.tasks_done || 0) + ' done · ' + (ms.turns || 0) + ' turns · ' + (ms.db_kb || 0) + 'KB';
   };
   learn(v.memstats);
+  refreshTasks();
 }
-
-function enterResponseMode() {
-  document.body.classList.add('responding');
-}
-
-// ---------- Socket connection ----------
-// SECURITY FIX: the dashboard used to accept socket connections from
-// anyone who could reach this port, with no login at all — see main.py's
-// dashboard-auth comments for the full story. The server now only renders
-// this page (and only accepts this socket) if the request carries the
-// access token it printed at startup, so that token has to already be in
-// this page's own URL for us to have gotten this far. Forward it onto the
-// socket handshake so the server's connect handler can check it too.
+// ---------- socket ----------
 const _47Token = new URLSearchParams(window.location.search).get('token') || '';
 const socket = io({ query: { token: _47Token },
   reconnection: true, reconnectionAttempts: Infinity,
   reconnectionDelay: 1000, reconnectionDelayMax: 8000, timeout: 15000 });
 function connLost(msg) {
-  const sub = document.getElementById('landingSub');
-  if (sub) { sub.textContent = msg; sub.style.color = '#ff9a9a'; }
+  document.getElementById('topStatus').textContent = msg;
+  document.getElementById('liveDot').classList.add('bad');
+  setState('offline');
 }
-socket.on('connect', () => { document.getElementById('liveDot').style.background = '#2fbf6f'; });
-socket.on('disconnect', () => {
-  document.getElementById('liveDot').style.background = '#ff5f5f';
-  connLost('Reconnecting to 47… (connection dropped, retrying)');
+socket.on('connect', () => {
+  document.getElementById('liveDot').classList.remove('bad');
+  document.getElementById('topStatus').textContent = '47 is ready';
+  setState('idle');
 });
+socket.on('disconnect', () => connLost('Reconnecting to 47…'));
 socket.on('reconnect', () => { location.reload(); });
-socket.on('connect_error', (err) => {
-  connLost('Connection rejected — missing or wrong access token in the URL.');
-});
+socket.on('connect_error', () => connLost('Connection rejected — check the access token in the URL.'));
+let tasksCache = [];
 socket.on('data_47', (msg) => {
   if (msg.kind === 'vitals') { updateVitals(msg.payload); return; }
-  if (msg.kind === 'window') { document.getElementById('v-window').textContent = msg.payload.title.slice(0,20); return; }
+  if (msg.kind === 'window') { document.getElementById('v-window').textContent = msg.payload.title.slice(0, 28); return; }
+  if (msg.kind === 'approval') { addApproval(msg.payload.kind, msg.payload.command, msg.payload.action || ''); return; }
   if (msg.kind === 'briefing') {
-    enterResponseMode();
     const box = document.getElementById('s-brief');
     if (box && msg.payload.headlines) {
       box.innerHTML = '';
       msg.payload.headlines.slice(0, 5).forEach((h) => {
         const d = document.createElement('div');
+        d.className = 'headline';
         d.textContent = '• ' + h;
         box.appendChild(d);
       });
     }
     if (msg.payload.tasks_open !== undefined) {
-      document.getElementById('s-tasks').textContent = `${msg.payload.tasks_open} open`;
+      document.getElementById('taskCount').textContent = msg.payload.tasks_open + ' open';
     }
     const ms = msg.payload.memstats;
     if (ms) {
-      const el = document.getElementById('l-learn');
-      if (el) el.textContent = `${ms.facts || 0} facts · ${ms.tasks_done || 0} done · ${ms.turns || 0} turns · ${ms.db_kb || 0}KB`;
+      document.getElementById('l-learn').textContent =
+        (ms.facts || 0) + ' facts · ' + (ms.tasks_done || 0) + ' done · ' + (ms.turns || 0) + ' turns · ' + (ms.db_kb || 0) + 'KB';
     }
+    refreshTasks();
     return;
   }
-  if (msg.kind === 'text') { enterResponseMode(); showText(msg.payload); return; }
-  // Visuals no longer hide the 2D text panel: 3D + detailed text coexist.
-  enterResponseMode();
+  if (msg.kind === 'text') {
+    const t = msg.payload.content || '';
+    if (t.startsWith('Plan:')) {
+      const lines = t.split('\n').filter((l) => /^\d+\./.test(l.trim()));
+      setActiveTask('Multi-step plan', lines.length + ' steps', 10, 'Working');
+      setState('working');
+    } else if (/^Step \d+\/\d+:/.test(t)) {
+      const m = t.match(/^Step (\d+)\/(\d+):\s*(.*)/);
+      if (m) setActiveTask('Multi-step plan', m[3].slice(0, 80), (100 * (+m[1]) / (+m[2] || 1)), 'Working');
+    } else if (t.startsWith('All steps done')) {
+      setActiveTask('Multi-step plan', 'Complete', 100, null);
+      setState('success');
+      setTimeout(() => { if (document.getElementById('activeTitle').textContent === 'Multi-step plan') clearActiveTask(); }, 8000);
+    } else {
+      setState('speaking');
+      setTimeout(() => setState('idle'), 4000);
+    }
+    showText(msg.payload);
+    return;
+  }
+  setState('working');
   if (msg.kind === 'bars') renderBars(msg.payload);
   else if (msg.kind === 'network') renderNetwork(msg.payload);
   else if (msg.kind === 'model3d') renderModel(msg.payload);
   else if (msg.kind === 'object3d') renderObject3D(msg.payload);
+  setTimeout(() => setState('idle'), 4000);
 });
-
-// ---------- Typed input (no wake word needed — this box IS being addressed) ----------
+// ---------- views ----------
+function switchView(name) {
+  document.querySelectorAll('#mainNav .nav-link').forEach((b) => {
+    b.classList.toggle('nav-active', b.dataset.view === name);
+  });
+  document.querySelectorAll('[data-viewpanel]').forEach((p) => {
+    p.hidden = p.dataset.viewpanel !== name;
+  });
+  document.getElementById('sidebar').classList.remove('sidebar-open');
+  document.getElementById('scrim').style.display = 'none';
+  if (name === 'tasks') refreshTasks(true);
+  if (name === 'memory') refreshMemory();
+  if (name === 'activity') refreshAudit();
+}
+document.querySelectorAll('#mainNav .nav-link').forEach((b) => {
+  b.addEventListener('click', () => switchView(b.dataset.view));
+});
+function api(path, opts) {
+  return fetch(path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(_47Token), opts)
+    .then((r) => { if (!r.ok) throw new Error('api ' + r.status); return r.json(); });
+}
+function refreshTasks(full) {
+  api('/api/tasks').then((data) => {
+    tasksCache = data.tasks || [];
+    document.getElementById('taskCount').textContent = tasksCache.length + ' open';
+    const rail = document.getElementById('taskList');
+    rail.innerHTML = '';
+    tasksCache.slice(0, 6).forEach((t) => rail.appendChild(taskRow(t, false)));
+    if (full) {
+      const box = document.getElementById('tasksFull');
+      box.innerHTML = '';
+      if (!tasksCache.length) box.innerHTML = '<p class="kv">No open tasks. Add one: "remind me …".</p>';
+      tasksCache.forEach((t) => box.appendChild(taskRow(t, true)));
+    }
+  }).catch(() => {});
+}
+function taskRow(t, full) {
+  const div = document.createElement('div');
+  div.className = 'priority-item';
+  const check = document.createElement('span');
+  check.className = 'task-check';
+  div.appendChild(check);
+  const mid = document.createElement('div');
+  const st = document.createElement('strong');
+  st.textContent = t.title;
+  mid.appendChild(st);
+  if (full && t.due_at) {
+    const sm = document.createElement('small');
+    sm.textContent = new Date(t.due_at * 1000).toLocaleString();
+    mid.appendChild(sm);
+  }
+  div.appendChild(mid);
+  if (full) {
+    const btn = document.createElement('button');
+    btn.className = 'task-done-btn';
+    btn.textContent = 'Done';
+    btn.addEventListener('click', () => {
+      api('/api/tasks/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: t.id }) }).then(() => { refreshTasks(true); setState('success'); setTimeout(() => setState('idle'), 2500); });
+    });
+    div.appendChild(btn);
+  }
+  return div;
+}
+function refreshMemory() {
+  api('/api/memory').then((data) => {
+    const facts = data.facts || {};
+    const keys = Object.keys(facts);
+    document.getElementById('memStats').textContent =
+      keys.length + ' facts · ' + JSON.stringify(data.stats || {});
+    const box = document.getElementById('factsFull');
+    box.innerHTML = '';
+    if (!keys.length) box.innerHTML = '<p class="kv">Nothing remembered yet. Say "remember that …".</p>';
+    keys.forEach((k) => {
+      const row = document.createElement('div');
+      row.className = 'fact-row';
+      const txt = document.createElement('div');
+      const st = document.createElement('strong');
+      st.textContent = k;
+      const sm = document.createElement('small');
+      sm.textContent = String(facts[k]).slice(0, 160);
+      txt.appendChild(st);
+      txt.appendChild(sm);
+      row.appendChild(txt);
+      const del = document.createElement('button');
+      del.textContent = 'Delete';
+      del.addEventListener('click', () => {
+        api('/api/memory/' + encodeURIComponent(k), { method: 'DELETE' }).then(() => refreshMemory());
+      });
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }).catch(() => {});
+}
+document.getElementById('memExport').addEventListener('click', () => {
+  api('/api/memory').then((data) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '47-memory.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  });
+});
+function refreshAudit() {
+  api('/api/audit').then((data) => {
+    const box = document.getElementById('auditFull');
+    box.innerHTML = '';
+    const entries = data.entries || [];
+    if (!entries.length) box.innerHTML = '<p class="kv">No audit entries yet.</p>';
+    entries.slice(-30).forEach((e) => {
+      const d = document.createElement('div');
+      d.className = 'kv';
+      const when = e.ts ? new Date(e.ts * 1000).toLocaleString() : '';
+      d.textContent = when + ' · ' + e.event;
+      box.appendChild(d);
+    });
+  }).catch(() => {});
+}
+// ---------- composer, palette, mic ----------
+function sendCommand(text) {
+  const t = (text !== undefined ? text : document.getElementById('typedInput').value).trim();
+  if (!t) return;
+  setState('thinking');
+  addMessage('you', t);
+  socket.emit('user_text_command', { text: t });
+  document.getElementById('typedInput').value = '';
+}
 function sendTyped() {
-  const input = document.getElementById('typedInput');
-  const text = input.value.trim();
-  if (!text) return;
-  enterResponseMode();
-  socket.emit('user_text_command', { text });
-  input.value = '';
+  sendCommand();
 }
 document.getElementById('sendBtn').addEventListener('click', sendTyped);
 document.getElementById('typedInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') sendTyped();
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTyped(); }
 });
-let helpLoaded = false;
-document.getElementById('cmdBtn').addEventListener('click', () => {
-  const ov = document.getElementById('helpOverlay');
-  ov.style.display = 'block';
-  enterResponseMode();
-  if (helpLoaded) return;
-  fetch('/api/commands?token=' + encodeURIComponent(_47Token))
-    .then((r) => r.json())
-    .then((data) => {
-      helpLoaded = true;
-      const body = document.getElementById('helpBody');
-      body.innerHTML = '';
-      data.groups.forEach((g) => {
-        const h = document.createElement('h3');
-        h.textContent = g.title;
-        body.appendChild(h);
-        g.items.forEach((it) => {
-          const d = document.createElement('div');
-          d.className = 'cmd';
-          const b = document.createElement('b');
-          b.textContent = it.triggers + '  ';
-          const s = document.createElement('span');
-          s.textContent = 'e.g. ' + it.example;
-          d.appendChild(b);
-          d.appendChild(s);
-          body.appendChild(d);
-        });
-      });
-    })
-    .catch(() => {
-      document.getElementById('helpBody').textContent = 'Could not load commands.';
+const QUICK = ['Plan my day', 'Add task', 'Start focus', 'Create note', 'Set reminder', 'Find a file'];
+(function initQuick() {
+  const grid = document.getElementById('quickGrid');
+  QUICK.forEach((q) => {
+    const b = document.createElement('button');
+    b.textContent = q;
+    b.addEventListener('click', () => {
+      document.getElementById('typedInput').value = q + ' ';
+      document.getElementById('typedInput').focus();
     });
+    grid.appendChild(b);
+  });
+})();
+function openPalette() {
+  document.getElementById('paletteLayer').hidden = false;
+  const input = document.getElementById('paletteInput');
+  input.value = '';
+  renderPalette('');
+  setTimeout(() => input.focus(), 30);
+}
+function closePalette() {
+  document.getElementById('paletteLayer').hidden = true;
+}
+let paletteGroups = null;
+function renderPalette(filter) {
+  const body = document.getElementById('paletteBody');
+  const f = (filter || '').toLowerCase();
+  const add = (label, sub, run) => {
+    const b = document.createElement('button');
+    const s1 = document.createElement('span');
+    s1.textContent = label;
+    const s2 = document.createElement('small');
+    s2.textContent = sub;
+    b.appendChild(s1);
+    b.appendChild(s2);
+    b.addEventListener('click', run);
+    body.appendChild(b);
+  };
+  body.innerHTML = '<p class="command-label">Suggested</p>';
+  if (!paletteGroups) { body.innerHTML += '<p class="command-label">Loading…</p>'; return; }
+  let shown = 0;
+  paletteGroups.forEach((g) => {
+    const items = g.items.filter((it) => !f || (it.triggers + ' ' + it.example).toLowerCase().includes(f));
+    if (!items.length) return;
+    const lab = document.createElement('p');
+    lab.className = 'command-label';
+    lab.textContent = g.title;
+    body.appendChild(lab);
+    items.slice(0, 6).forEach((it) => {
+      if (shown++ > 24) return;
+      add(it.triggers, 'e.g. ' + it.example, () => {
+        closePalette();
+        document.getElementById('typedInput').value = it.example;
+        document.getElementById('typedInput').focus();
+      });
+    });
+  });
+  if (!shown) body.innerHTML += '<p class="command-label">No matches — press Enter to ask 47 directly.</p>';
+}
+document.getElementById('paletteBtn').addEventListener('click', () => {
+  openPalette();
+  if (!paletteGroups) {
+    fetch('/api/commands?token=' + encodeURIComponent(_47Token))
+      .then((r) => r.json())
+      .then((d) => { paletteGroups = d.groups; renderPalette(document.getElementById('paletteInput').value); })
+      .catch(() => {});
+  }
 });
-document.getElementById('helpClose').addEventListener('click', () => {
-  document.getElementById('helpOverlay').style.display = 'none';
+document.getElementById('paletteInput').addEventListener('input', (e) => renderPalette(e.target.value));
+document.getElementById('paletteInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const v = e.target.value.trim();
+    closePalette();
+    if (v) sendCommand(v);
+  }
+  if (e.key === 'Escape') closePalette();
 });
-
-// Demo scene on load: the 47 emblem core, so 3D is always present
-renderEmblem({});
-
+document.getElementById('paletteLayer').addEventListener('mousedown', (e) => {
+  if (e.target.id === 'paletteLayer') closePalette();
+});
+document.getElementById('menuBtn').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.add('sidebar-open');
+  document.getElementById('scrim').style.display = 'block';
+});
+document.getElementById('scrim').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.remove('sidebar-open');
+  document.getElementById('scrim').style.display = 'none';
+});
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); }
+  if (e.key === 'Escape') closePalette();
+});
+document.getElementById('activeCancel').addEventListener('click', () => {
+  clearActiveTask();
+  sendCommand('cancel');
+});
+(function initMic() {
+  const btn = document.getElementById('micBtn');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    btn.title = 'Voice typing unavailable in this browser';
+    btn.style.opacity = '0.4';
+    return;
+  }
+  let rec = null, live = false;
+  btn.title = 'Voice typing (browser speech recognition — review before sending)';
+  btn.addEventListener('click', () => {
+    if (live && rec) { rec.stop(); return; }
+    rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = true;
+    rec.onresult = (e) => {
+      let txt = '';
+      for (const r of e.results) txt += r[0].transcript;
+      document.getElementById('typedInput').value = txt;
+    };
+    rec.onend = () => { live = false; btn.classList.remove('mic-live'); setState('idle'); };
+    rec.onerror = () => { live = false; btn.classList.remove('mic-live'); setState('idle'); };
+    try {
+      rec.start();
+      live = true;
+      btn.classList.add('mic-live');
+      setState('listening');
+    } catch (e) { /* already started */ }
+  });
+})();
+// ---------- misc UI ----------
 document.getElementById('zoomIn').addEventListener('click', () => { camera.position.multiplyScalar(0.85); });
 document.getElementById('zoomOut').addEventListener('click', () => { camera.position.multiplyScalar(1.18); });
 document.getElementById('zoomReset').addEventListener('click', () => { camera.position.set(0, 6, 18); autoRotate = true; });
-
-setInterval(() => {
-  const now = new Date();
-  const t = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const c = document.getElementById('s-clock');
-  if (c) c.textContent = t;
-  const d = document.getElementById('s-date');
-  if (d) d.textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
-}, 1000);
-
-// ---------- Render loop ----------
+(function initClock() {
+  const tick = () => {
+    const now = new Date();
+    document.getElementById('m-clock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('m-date').textContent = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    const h = now.getHours();
+    const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+    document.getElementById('assistant-title').textContent = 'Good ' + part + '.';
+    document.getElementById('dateLine').textContent = now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+  tick();
+  setInterval(tick, 20000);
+})();
+renderEmblem({});
 let lastFrameTs = performance.now();
-let fpsAcc = 0, fpsN = 0, fpsLast = performance.now();
 let pageVisible = true;
 document.addEventListener('visibilitychange', () => { pageVisible = !document.hidden; });
 function animate() {
   requestAnimationFrame(animate);
-  if (!pageVisible) { lastFrameTs = performance.now(); return; } // zero GPU when tab hidden
+  if (!pageVisible) { lastFrameTs = performance.now(); return; }
   const now = performance.now();
   trackFrameTime(now - lastFrameTs);
   lastFrameTs = now;
-  fpsAcc += now - fpsLast; fpsLast = now; fpsN++;
-  if (fpsAcc >= 1000) {
-    const fpsEl = document.getElementById('hudFps');
-    if (fpsEl) fpsEl.textContent = Math.round(1000 * fpsN / fpsAcc);
-    fpsAcc = 0; fpsN = 0;
-  }
   if (autoRotate) dataGroup.rotation.y += 0.003;
   emblemRings.forEach((r, i) => { r.rotation.z += (i === 0 ? 0.004 : -0.003); });
   if (controls) controls.update();
   renderer.render(scene, camera);
 }
 animate();
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+window.addEventListener('resize', sizeRenderer);
 </script>
 </body>
 </html>

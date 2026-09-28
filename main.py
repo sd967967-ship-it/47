@@ -485,6 +485,8 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
             return
         if shell.needs_confirmation(command):
             shell.stage_for_confirmation(context_id, command, elevate)
+            push_to_dashboard("approval", {"kind": "shell", "command": command,
+                                           "elevate": elevate})
             speak(f"That looks like a destructive command: {command}. Say 'confirm' if you want me to run it anyway.")
             return
         speak(("Elevating and running it now." if elevate else "Running it now."))
@@ -779,6 +781,8 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
                 return
             action = "quiz you on" if kind == "QUIZ" else "summarize"
             shell.stage_for_confirmation(context_id, f"SEND-DOC:{kind}|{path}", False)
+            push_to_dashboard("approval", {"kind": "document", "command": path,
+                                           "action": action})
             speak(f"Found {os.path.basename(path)}. Say 'confirm' to send it to the brain to {action} — "
                   f"nothing leaves this laptop until you do.")
             return
@@ -1145,6 +1149,22 @@ def serve_model(name: str):
                      max_age=86400)
 
 
+@app.route("/api/status")
+def api_status():
+    """Brain, folders, and flags for the UI. Token-gated. No secrets."""
+    from flask import jsonify
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    _provider, _pname = get_active_provider()
+    import actions
+    return jsonify({
+        "brain": _pname or "unavailable",
+        "approved_folders": [str(p) for p in actions._approved_roots()],
+        "proactive": os.environ.get("47_PROACTIVE", "1") == "1",
+        "time": __import__("time").time(),
+    })
+
+
 @app.route("/api/commands")
 def api_commands():
     """Token-gated command catalog (single source: help_catalog.py)."""
@@ -1153,6 +1173,109 @@ def api_commands():
         abort(403)
     import help_catalog
     return jsonify({"groups": help_catalog.GROUPS})
+
+
+def _api_token_ok() -> bool:
+    return _check_token(request.args.get("token", ""))
+
+
+@app.route("/api/tasks")
+def api_tasks():
+    """Open tasks for the Tasks drawer. Token-gated, read-only."""
+    from flask import jsonify
+    if not _api_token_ok():
+        abort(403)
+    rows = memory.list_open_tasks()
+    return jsonify({"tasks": [{"id": r[0], "title": r[1], "due_at": r[2]} for r in rows]})
+
+
+@app.route("/api/tasks/complete", methods=["POST"])
+def api_tasks_complete():
+    """Complete one task by id (Level-1 style explicit action, logged)."""
+    from flask import jsonify
+    if not _api_token_ok():
+        abort(403)
+    try:
+        task_id = int((request.get_json(silent=True) or {}).get("id"))
+    except (TypeError, ValueError):
+        abort(400)
+    conn = None
+    try:
+        import sqlite3
+        conn = sqlite3.connect(memory.DB_PATH)
+        memory._ensure_tasks_table(conn)
+        row = conn.execute("SELECT description FROM tasks WHERE id = ? AND status = 'open'",
+                           (task_id,)).fetchone()
+        if not row:
+            abort(404)
+        conn.execute("UPDATE tasks SET status = 'done' WHERE id = ?", (task_id,))
+        conn.commit()
+        try:
+            import audit as _audit
+            _audit.record("task.complete", task_id=task_id, description=row[0][:120])
+        except Exception:
+            pass
+        return jsonify({"ok": True, "title": row[0]})
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route("/api/memory")
+def api_memory():
+    """Facts + counters for the Memory drawer. Token-gated, read-only."""
+    from flask import jsonify
+    if not _api_token_ok():
+        abort(403)
+    return jsonify({"facts": memory.all_facts(), "stats": memory.memory_stats()})
+
+
+@app.route("/api/memory/<key>", methods=["DELETE"])
+def api_memory_delete(key: str):
+    """Delete one remembered fact (explicit user action, logged)."""
+    from flask import jsonify
+    if not _api_token_ok():
+        abort(403)
+    ok = memory.forget_fact(key)
+    if ok:
+        try:
+            import audit as _audit
+            _audit.record("memory.delete", key=key)
+        except Exception:
+            pass
+        return jsonify({"ok": True})
+    abort(404)
+
+
+@app.route("/api/audit")
+def api_audit():
+    """Recent audit entries for the Activity drawer. Token-gated."""
+    from flask import jsonify
+    if not _api_token_ok():
+        abort(403)
+    import audit as _audit
+    return jsonify({"entries": _audit.read(limit=50)})
+
+
+@app.route("/api/feedback", methods=["POST"])
+def api_feedback():
+    """Message feedback (helpful / not helpful). Logged locally."""
+    from flask import jsonify
+    if not _api_token_ok():
+        abort(403)
+    body = request.get_json(silent=True) or {}
+    rating = str(body.get("rating", ""))[:20]
+    excerpt = str(body.get("excerpt", ""))[:200]
+    if rating not in ("helpful", "not-helpful"):
+        abort(400)
+    try:
+        import audit as _audit
+        _audit.record("feedback", rating=rating, excerpt=excerpt)
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 
 # FEATURE: typed data-entry channel. You can type anything the dashboard's
