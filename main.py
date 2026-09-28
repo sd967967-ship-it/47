@@ -391,6 +391,27 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
     if shell.has_pending(context_id):
         if lowered.strip() in ("confirm", "yes confirm", "confirm it", "yes run it", "do it"):
             command, elevate = shell.pop_pending(context_id)
+            if command.startswith("SEND-DOC:"):
+                # Staged document send (docs.py): extract locally, then ask
+                # the brain. Consent was the gate; content flows only now.
+                import docs as _docs
+                _kind, _, _path = command[len("SEND-DOC:"):].partition("|")
+                body = _docs.extract_text(_path, max_chars=12000)
+                if body.startswith("Refusing") or body.startswith("Couldn't"):
+                    speak(body[:280])
+                    push_to_dashboard("text", {"content": body})
+                    return
+                if _kind == "QUIZ":
+                    prompt = ("Make 5 short quiz questions (no answers) from these study notes:\n\n"
+                              + body[:10000])
+                else:
+                    prompt = ("Summarize these study notes for revision, with key points:\n\n"
+                              + body[:10000])
+                speak("Sending it to the brain now.")
+                reply = ask_brain(prompt)
+                speak(reply[:280])
+                push_to_dashboard("text", {"content": reply})
+                return
             speak("Confirmed — running it now." if not elevate else "Confirmed — elevating and running it now.")
             output = shell.run(command, elevate=elevate)
             speak(output[:280])
@@ -705,6 +726,35 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
             push_to_dashboard("object3d", {"type": "generic_object",
                                            "label": subject[:60] or "Object"})
         return
+
+    if lowered.startswith("index my files"):
+        import docs as _docs2
+        stats = _docs2.build_index()
+        report = (f"Indexed {stats['files']} files from your approved folders "
+                  f"(local filename index, no content read).")
+        speak(report)
+        push_to_dashboard("text", {"content": report})
+        return
+
+    for trigger, kind in (("summarize document ", "SUMMARY"), ("explain document ", "SUMMARY"),
+                          ("preview document ", "PREVIEW"), ("quiz me on ", "QUIZ")):
+        if lowered.startswith(trigger):
+            import docs as _docs3
+            name = text[len(trigger):].strip()
+            path = _docs3.find_document(name)
+            if not path:
+                speak(f"I couldn't find a document called {name} in your approved folders.")
+                return
+            if kind == "PREVIEW":
+                preview = _docs3.extract_text(path, max_chars=2000)
+                speak(f"Preview of {os.path.basename(path)}. Showing it on screen — nothing sent anywhere.")
+                push_to_dashboard("text", {"content": f"{os.path.basename(path)}:\n\n{preview}"})
+                return
+            action = "quiz you on" if kind == "QUIZ" else "summarize"
+            shell.stage_for_confirmation(context_id, f"SEND-DOC:{kind}|{path}", False)
+            speak(f"Found {os.path.basename(path)}. Say 'confirm' to send it to the brain to {action} — "
+                  f"nothing leaves this laptop until you do.")
+            return
 
     if "send email" in lowered or "write an email" in lowered:
         speak("Email needs the Gmail API setup — see actions.py for steps.")

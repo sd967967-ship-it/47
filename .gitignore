@@ -1,6 +1,7 @@
 # 47 — never commit secrets or local state
 .47_dashboard_token
 .47_env
+.47_file_index.json
 memory_47.db
 audit_47.jsonl
 watch_state.json
