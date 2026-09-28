@@ -26,8 +26,13 @@ _PATTERN = re.compile(rf"in\s+(\d+)\s*({_UNIT_PATTERN})", re.IGNORECASE)
 # needs the leading "remind me [in ...] [to]" stripped before this module ever
 # sees it, or the stored task description ends up as the whole raw sentence.
 _REMIND_PREFIX = re.compile(
-    rf"^\s*remind me\s*(in\s+\d+\s*(?:{_UNIT_PATTERN}))?\s*(to)?\s*", re.IGNORECASE,
+    rf"^\s*(?:remind me|wake me(?: up)?|set an alarm(?: for me)?)\s*"
+    rf"(in\s+\d+\s*(?:{_UNIT_PATTERN}))?\s*(to)?\s*", re.IGNORECASE,
 )
+
+# Clock times: "at 15:26", "at 3pm", "at 3:05 pm", "at 7".
+_AT_PATTERN = re.compile(
+    r"\bat\s+(\d{1,2})(?::|\s)?(\d{2})?\s*(am|pm)?\b", re.IGNORECASE)
 
 
 def strip_reminder_prefix(text: str) -> str:
@@ -44,13 +49,37 @@ def strip_reminder_prefix(text: str) -> str:
 
 def parse_due(text: str):
     match = _PATTERN.search(text)
+    if match:
+        amount = int(match.group(1))
+        unit = match.group(2).lower()
+        return time.time() + amount * _UNIT_SECONDS[unit]
+    return _parse_at_time(text)
+
+
+def _parse_at_time(text: str):
+    """'at 15:26' / 'at 3pm' / 'at 7' -> next occurrence (today, or
+    tomorrow if that time already passed). Returns None on no match."""
+    import datetime as _dt
+    match = _AT_PATTERN.search(text)
     if not match:
         return None
-    amount = int(match.group(1))
-    unit = match.group(2).lower()
-    return time.time() + amount * _UNIT_SECONDS[unit]
+    hour = int(match.group(1))
+    minute = int(match.group(2)) if match.group(2) else 0
+    meridiem = (match.group(3) or "").lower()
+    if meridiem == "pm" and hour < 12:
+        hour += 12
+    if meridiem == "am" and hour == 12:
+        hour = 0
+    if hour > 23 or minute > 59:
+        return None
+    now = _dt.datetime.now()
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if target.timestamp() <= now.timestamp():
+        target += _dt.timedelta(days=1)
+    return target.timestamp()
 
 
 def strip_due_phrase(text: str) -> str:
-    """Remove the 'in N units' phrase from a task description for cleaner storage."""
-    return _PATTERN.sub("", text).strip(" .,")
+    """Remove the 'in N units' / 'at HH:MM' phrase from a task description."""
+    text = _PATTERN.sub("", text)
+    return _AT_PATTERN.sub("", text).strip(" .,")

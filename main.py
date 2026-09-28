@@ -528,7 +528,9 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         push_to_dashboard("text", {"content": description})
         return
 
-    if lowered.startswith("remind me to ") or lowered.startswith("remind me in") or "remind me to" in lowered:
+    if lowered.startswith("remind me to ") or lowered.startswith("remind me in") or "remind me to" in lowered \
+            or lowered.startswith("wake me") or lowered.startswith("set an alarm") \
+            or lowered.startswith("alarm "):
         # BUGFIX: previously, "remind me in 10 minutes to call the bank" fell
         # through to using the *entire* raw sentence as the task description
         # whenever it didn't literally contain "remind me to". Now the whole
@@ -536,6 +538,8 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         raw = time_parse.strip_reminder_prefix(text)
         due_at = time_parse.parse_due(raw)
         description = time_parse.strip_due_phrase(raw)
+        if not description:
+            description = "wake up" if "wake" in lowered or "alarm" in lowered else "reminder"
         memory.add_task(description, due_at=due_at, source="explicit_reminder")
         if due_at:
             speak(f"Got it, I'll remind you to {description}.")
