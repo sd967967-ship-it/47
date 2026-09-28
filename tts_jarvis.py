@@ -161,14 +161,54 @@ def _speak_worker():
         time.sleep(0.4)  # breath between utterances
 
 
+def _chunks(text: str, limit: int = 140) -> list:
+    """Split speech into sentence-ish chunks so the first audio starts
+    after ~1 sentence of synthesis instead of the whole reply."""
+    import re as _re
+    parts = [p.strip() for p in _re.split(r"(?<=[.!?\n])\s+", text.strip()) if p.strip()]
+    out, buf = [], ""
+    for p in parts:
+        if len(buf) + len(p) + 1 <= limit:
+            buf = (buf + " " + p).strip()
+        else:
+            if buf:
+                out.append(buf)
+            buf = p
+    if buf:
+        out.append(buf)
+    return out or [text]
+
+
 def _speak_one(text: str):
     """Tries the free online neural voice first, falls back to the fully
     offline voice on any failure (no internet, edge-tts missing, etc.).
-    Speaks the cleaned (symbol-free) version; logs show the original."""
+    Speaks the cleaned (symbol-free) version; logs show the original.
+    Chunked: first sentence plays as soon as it's synthesized."""
     say = clean_for_speech(text)
     if not say:
         return
+    try:
+        import playsound  # noqa  (blocking playback -> serial chunks)
+        chunked = True
+    except Exception:
+        chunked = False
     with _lock:
+        if chunked:
+            try:
+                for piece in _chunks(say):
+                    fd, path = tempfile.mkstemp(suffix=".mp3")
+                    os.close(fd)
+                    try:
+                        asyncio.run(_edge_tts_to_file(piece, path))
+                        playsound.playsound(path)
+                    finally:
+                        try:
+                            os.remove(path)
+                        except OSError:
+                            pass
+                return
+            except Exception:
+                pass
         path = None
         try:
             fd, path = tempfile.mkstemp(suffix=".mp3")

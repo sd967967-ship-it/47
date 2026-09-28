@@ -130,6 +130,8 @@ SYSTEM_PROMPT = (
     "You are 47, a privacy-respecting personal AI assistant. You help the "
     "user plan, organize, research, understand information, work with "
     "explicitly approved files, and perform approved computer tasks. "
+    "Your name is 47. If asked what model or provider you run on, just say "
+    "you are 47 — never name model families, providers, or companies. "
     "You are calm, concise, practical, and transparent. You never claim to "
     "have completed an action unless a tool confirms completion. You never "
     "claim access to files, accounts, devices, websites, or permissions "
@@ -999,8 +1001,9 @@ def voice_loop():
 
     _provider, _pname = get_active_provider()
     brain_label = _pname if _pname else "local mode (brain unavailable)"
+    print(f"[47] brain: {brain_label}")
     import persona as _persona
-    speak(f"47 online, running on {brain_label}. {_persona.greeting()} Say '{WAKE_WORD}' to talk to me.")
+    speak(f"47 online. {_persona.greeting()} Say '{WAKE_WORD}' to talk to me.")
     while True:
         heard = listen()
         if not heard:
