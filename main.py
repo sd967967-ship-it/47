@@ -1001,7 +1001,6 @@ def voice_loop():
     brain_label = _pname if _pname else "local mode (brain unavailable)"
     import persona as _persona
     speak(f"47 online, running on {brain_label}. {_persona.greeting()} Say '{WAKE_WORD}' to talk to me.")
-    speak(f"47 online, running on {brain_label}. Say '{WAKE_WORD}' to talk to me.")
     while True:
         heard = listen()
         if not heard:
