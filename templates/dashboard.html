@@ -113,6 +113,24 @@
     padding:0 18px; font-size:13px; letter-spacing:1px; cursor:pointer;
   }
   #inputBar button:hover { background:#123a52; }
+  #cmdBtn { padding:0 14px !important; }
+  #helpOverlay {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:min(640px,92%); max-height:76%; overflow-y:auto; z-index:30; display:none;
+    background:rgba(6,12,20,.96); border:1px solid #2fbfff88; border-radius:14px;
+    padding:20px 24px; color:#c7f5ff;
+    box-shadow:0 0 60px rgba(79,216,255,.2);
+    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  }
+  #helpOverlay h2 { margin:0 0 10px; font-size:16px; letter-spacing:3px; color:#4fd8ff;
+    font-family:var(--font-display); }
+  #helpOverlay h3 { margin:14px 0 4px; font-size:13px; letter-spacing:2px; color:#9fe8ff;
+    font-family:var(--font-display); }
+  #helpOverlay .cmd { font-size:13px; margin:3px 0; color:#d8f6ff; }
+  #helpOverlay .cmd b { color:#4fd8ff; font-weight:normal; }
+  #helpOverlay .cmd span { color:#7fdfff99; }
+  #helpClose { position:absolute; top:10px; right:14px; cursor:pointer; color:#7fdfff;
+    font-size:15px; border:none; background:none; }
   #vitals {
     position:absolute; top:16px; right:16px; color:#7fdfff; font-size:12px;
     background:rgba(10,20,30,0.5); border:1px solid #2fbfff33; border-radius:8px;
@@ -179,7 +197,13 @@
 <div id="zoomBar"><button id="zoomIn" title="Zoom in">+</button><button id="zoomOut" title="Zoom out">−</button><button id="zoomReset" title="Reset view">⟡</button></div>
 <div id="inputBar">
   <input id="typedInput" type="text" placeholder="Type a command or data for 47 (no wake word needed here)…" autocomplete="off">
+  <button id="cmdBtn" title="What 47 can do">?</button>
   <button id="sendBtn">SEND</button>
+</div>
+<div id="helpOverlay" aria-live="polite">
+  <button id="helpClose" title="Close">✕</button>
+  <h2>WHAT 47 CAN DO</h2>
+  <div id="helpBody">Loading…</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -741,6 +765,42 @@ function sendTyped() {
 document.getElementById('sendBtn').addEventListener('click', sendTyped);
 document.getElementById('typedInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') sendTyped();
+});
+let helpLoaded = false;
+document.getElementById('cmdBtn').addEventListener('click', () => {
+  const ov = document.getElementById('helpOverlay');
+  ov.style.display = 'block';
+  enterResponseMode();
+  if (helpLoaded) return;
+  fetch('/api/commands?token=' + encodeURIComponent(_47Token))
+    .then((r) => r.json())
+    .then((data) => {
+      helpLoaded = true;
+      const body = document.getElementById('helpBody');
+      body.innerHTML = '';
+      data.groups.forEach((g) => {
+        const h = document.createElement('h3');
+        h.textContent = g.title;
+        body.appendChild(h);
+        g.items.forEach((it) => {
+          const d = document.createElement('div');
+          d.className = 'cmd';
+          const b = document.createElement('b');
+          b.textContent = it.triggers + '  ';
+          const s = document.createElement('span');
+          s.textContent = 'e.g. ' + it.example;
+          d.appendChild(b);
+          d.appendChild(s);
+          body.appendChild(d);
+        });
+      });
+    })
+    .catch(() => {
+      document.getElementById('helpBody').textContent = 'Could not load commands.';
+    });
+});
+document.getElementById('helpClose').addEventListener('click', () => {
+  document.getElementById('helpOverlay').style.display = 'none';
 });
 
 // Demo scene on load: the 47 emblem core, so 3D is always present

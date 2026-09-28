@@ -763,11 +763,17 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         return
 
     if "brain status" in lowered or "brain health" in lowered:
-        from providers import grok as _grok
-        status = _grok.health_check()
-        report = f"Brain status: {status}."
+        _provider, _pname = get_active_provider()
+        status = _provider.health_check() if _provider else "no brain key configured"
+        report = f"Brain status ({_pname or 'none'}): {status}."
         speak(report)
         push_to_dashboard("text", {"content": report})
+        return
+
+    if lowered.strip() in ("help", "what can you do", "commands", "show commands"):
+        import help_catalog as _help
+        speak("Showing everything I can do on screen — pick any trigger word and say it.")
+        push_to_dashboard("text", {"content": _help.as_text()})
         return
 
     if "tomorrow" in lowered and ("routine" in lowered or "agenda" in lowered                                  or "schedule" in lowered or "plan" in lowered
@@ -1112,6 +1118,16 @@ def serve_model(name: str):
         abort(404)
     return send_file(str(path), mimetype="model/gltf-binary",
                      max_age=86400)
+
+
+@app.route("/api/commands")
+def api_commands():
+    """Token-gated command catalog (single source: help_catalog.py)."""
+    from flask import jsonify
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    import help_catalog
+    return jsonify({"groups": help_catalog.GROUPS})
 
 
 # FEATURE: typed data-entry channel. You can type anything the dashboard's
