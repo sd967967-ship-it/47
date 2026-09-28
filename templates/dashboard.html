@@ -845,7 +845,11 @@ function api(path, opts) {
   return fetch(path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(_47Token), opts)
     .then((r) => { if (!r.ok) throw new Error('api ' + r.status); return r.json(); });
 }
+let lastRailRefresh = 0;
 function refreshTasks(full) {
+  const now = Date.now();
+  if (!full && now - lastRailRefresh < 60000) return; // rail: 60s max, not every vitals tick
+  if (!full) lastRailRefresh = now;
   api('/api/tasks').then((data) => {
     tasksCache = data.tasks || [];
     document.getElementById('taskCount').textContent = tasksCache.length + ' open';
