@@ -99,16 +99,20 @@ class TestDashboardTokenGate(unittest.TestCase):
         self.assertFalse(main._check_token(""))
 
     def test_dashboard_route_403s_without_token(self):
-        resp = self.client.get("/")
+        resp = self.client.get("/classic")
         self.assertEqual(resp.status_code, 403)
 
     def test_dashboard_route_403s_with_wrong_token(self):
-        resp = self.client.get("/?token=nope")
+        resp = self.client.get("/classic?token=nope")
         self.assertEqual(resp.status_code, 403)
 
     def test_dashboard_route_200s_with_correct_token(self):
-        resp = self.client.get("/?token=test-token-for-suite")
+        resp = self.client.get("/classic?token=test-token-for-suite")
         self.assertEqual(resp.status_code, 200)
+
+    def test_root_proxies_node_and_403s_without_token(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 403)
 
     def test_on_connect_rejects_bad_token(self):
         fake_request = MagicMock()

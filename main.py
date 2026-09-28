@@ -1233,13 +1233,54 @@ def _check_token(supplied: str) -> bool:
 
 @app.route("/")
 def dashboard():
-    # SECURITY FIX: this used to render unconditionally for anyone who could
-    # reach the port. Now it 403s without the correct ?token=... — see the
-    # module docstring's "Dashboard access control" section.
+    """Exact React frontend (thoughtful-touch-forge build), proxied from the
+    local node server. Falls back to nothing — node must be running."""
+    if not _check_token(request.args.get("token", "")):
+        abort(403, description="Missing or invalid dashboard token. Use the URL "
+                                "printed in the console when 47 started.")
+    return _proxy_node("/")
+
+
+@app.route("/classic")
+def classic_dashboard():
+    """Previous single-file dashboard (fallback while the node app boots)."""
     if not _check_token(request.args.get("token", "")):
         abort(403, description="Missing or invalid dashboard token. Use the URL "
                                 "printed in the console when 47 started.")
     return render_template("dashboard.html")
+
+
+_NODE_PAGES = ("today", "tasks", "calendar", "notes", "projects", "focus",
+               "memory", "activity", "settings")
+
+
+@app.route("/<page>")
+def node_page(page: str):
+    if page not in _NODE_PAGES:
+        abort(404)
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    return _proxy_node("/" + page)
+
+
+@app.route("/assets/<path:sub>")
+def node_assets(sub: str):
+    """Fingerprinted build assets — public, no data."""
+    return _proxy_node("/assets/" + sub, public=True)
+
+
+def _proxy_node(path: str, public: bool = False):
+    """Reverse-proxy to the local exact-frontend node server (port 4173)."""
+    import requests as _rq
+    try:
+        url = f"http://127.0.0.1:4173{path}"
+        resp = _rq.request(request.method, url,
+                           params={k: v for k, v in request.args.items()},
+                           data=request.get_data(), timeout=20)
+        ctype = resp.headers.get("Content-Type", "text/html")
+        return (resp.content, resp.status_code, {"Content-Type": ctype})
+    except Exception:
+        return ("Exact frontend node server is not running.", 502)
 
 
 @app.route("/models/<name>")
@@ -1365,6 +1406,24 @@ def api_audit():
         abort(403)
     import audit as _audit
     return jsonify({"entries": _audit.read(limit=50)})
+
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    """Run one command through the full pipeline and return the reply text.
+    Used by the exact React frontend. TTS may also speak on the laptop."""
+    from flask import jsonify
+    if not _api_token_ok():
+        abort(403)
+    body = request.get_json(silent=True) or {}
+    text = str(body.get("text", ""))[:2000].strip()
+    if not text:
+        abort(400)
+    before = [c for _r, c in memory.recent_history(5) if _r == "assistant"]
+    handle_command(text, context_id="web")
+    after = [c for _r, c in memory.recent_history(5) if _r == "assistant"]
+    reply = after[-1] if after and (not before or after[-1] != before[-1]) else "(done)"
+    return jsonify({"reply": reply})
 
 
 @app.route("/api/feedback", methods=["POST"])
