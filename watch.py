@@ -24,6 +24,26 @@ _WORLD_TTL_S = 3600
 _cache = {"at": 0.0, "headlines": []}
 
 
+def _age_ago(ts: float) -> str:
+    mins = max(0, int((time.time() - ts) // 60))
+    if mins < 60:
+        return f"{mins}m ago"
+    hours = mins // 60
+    if hours < 48:
+        return f"{hours}h ago"
+    return f"{hours // 24}d ago"
+
+
+def _domain_of(url: str) -> str:
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower()
+        return host[4:] if host.startswith("www.") else host
+    except Exception:
+        return ""
+    return {}
+
+
 def _load_state() -> dict:
     try:
         return json.loads(STATE_PATH.read_text(encoding="utf-8"))
@@ -59,7 +79,11 @@ def get_world_headlines(limit: int = 5) -> list:
                 ).json()
                 title = (item or {}).get("title", "").strip()
                 if title:
-                    titles.append(title)
+                    dom = _domain_of((item or {}).get("url", ""))
+                    ts = (item or {}).get("time", 0) or 0
+                    extra = ", ".join(p for p in
+                                      (dom, _age_ago(ts) if ts else "") if p)
+                    titles.append(f"{title} ({extra})" if extra else title)
             except Exception:
                 continue
         if titles:

@@ -48,6 +48,32 @@ class TestTimeParse(unittest.TestCase):
         raw = time_parse.strip_reminder_prefix("wake me up at 15 26")
         self.assertEqual(time_parse.strip_due_phrase(raw), "")
 
+    def test_parse_due_tomorrow(self):
+        import time
+        due = time_parse.parse_due("party tomorrow")
+        self.assertIsNotNone(due)
+        self.assertGreater(due, time.time())
+        self.assertLess(due - time.time(), 2 * 86400)
+
+    def test_parse_due_month_day(self):
+        import datetime
+        import time
+        due = time_parse.parse_due("diwali party on 20 october")
+        self.assertIsNotNone(due)
+        self.assertGreater(due, time.time() - 86400)
+
+    def test_parse_due_weekday(self):
+        import time
+        due = time_parse.parse_due("review on monday")
+        self.assertIsNotNone(due)
+        self.assertGreater(due, time.time())
+        self.assertLess(due - time.time(), 8 * 86400)
+
+    def test_strip_date_phrase(self):
+        out = time_parse.strip_due_phrase("diwali party on 20 october")
+        self.assertNotIn("october", out.lower())
+        self.assertIn("diwali", out.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

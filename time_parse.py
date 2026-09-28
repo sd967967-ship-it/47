@@ -34,6 +34,28 @@ _REMIND_PREFIX = re.compile(
 _AT_PATTERN = re.compile(
     r"\bat\s+(\d{1,2})(?::|\s)?(\d{2})?\s*(am|pm)?\b", re.IGNORECASE)
 
+_MONTHS = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5,
+    "june": 6, "july": 7, "august": 8, "september": 9, "october": 10,
+    "november": 11, "december": 12,
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11,
+    "dec": 12,
+}
+_WEEKDAYS = {
+    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+    "friday": 4, "saturday": 5, "sunday": 6,
+}
+_MONTH_DAY_RE = re.compile(
+    r"\b(?:on\s+)?(?:(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)"
+    r"|([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?)\b",
+    re.IGNORECASE)
+_WEEKDAY_RE = re.compile(
+    r"\b(?:on\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    re.IGNORECASE)
+_TODAY_RE = re.compile(r"\btoday\b", re.IGNORECASE)
+_TOMORROW_RE = re.compile(r"\btomorrow\b", re.IGNORECASE)
+
 
 def strip_reminder_prefix(text: str) -> str:
     """Strip a leading 'remind me [in N units] [to]' so the remaining text is
@@ -53,7 +75,48 @@ def parse_due(text: str):
         amount = int(match.group(1))
         unit = match.group(2).lower()
         return time.time() + amount * _UNIT_SECONDS[unit]
-    return _parse_at_time(text)
+    at_time = _parse_at_time(text)
+    if at_time:
+        return at_time
+    return _parse_date(text)
+
+
+def _parse_date(text: str):
+    """Calendar dates -> 09:00 that day (or next occurrence):
+    'tomorrow', 'today', 'on monday', 'on 20 october', 'october 20'.
+    Returns None on no match."""
+    import datetime as _dt
+    now = _dt.datetime.now()
+    today9 = now.replace(hour=9, minute=0, second=0, microsecond=0)
+    if _TOMORROW_RE.search(text):
+        return (today9 + _dt.timedelta(days=1)).timestamp()
+    if _TODAY_RE.search(text):
+        evening = now.replace(hour=21, minute=0, second=0, microsecond=0)
+        return evening.timestamp() if evening > now else (evening + _dt.timedelta(days=1)).timestamp()
+    match = _WEEKDAY_RE.search(text)
+    if match:
+        name = match.group(1).lower()
+        if name in _WEEKDAYS:
+            delta = (_WEEKDAYS[name] - now.weekday()) % 7 or 7
+            return (today9 + _dt.timedelta(days=delta)).timestamp()
+    match = _MONTH_DAY_RE.search(text)
+    if match:
+        day_s, mon_s = match.group(1, 2) if match.group(1) else (match.group(4), match.group(3))
+        month = _MONTHS.get((mon_s or "").lower())
+        day = int(day_s) if day_s else 0
+        if month and 1 <= day <= 31:
+            year = now.year
+            try:
+                target = _dt.datetime(year, month, day, 9, 0)
+            except ValueError:
+                return None
+            if target <= now:
+                try:
+                    target = _dt.datetime(year + 1, month, day, 9, 0)
+                except ValueError:
+                    return None
+            return target.timestamp()
+    return None
 
 
 def _parse_at_time(text: str):
@@ -80,6 +143,11 @@ def _parse_at_time(text: str):
 
 
 def strip_due_phrase(text: str) -> str:
-    """Remove the 'in N units' / 'at HH:MM' phrase from a task description."""
+    """Remove due phrases ('in N units' / 'at HH:MM' / dates) from a task."""
     text = _PATTERN.sub("", text)
-    return _AT_PATTERN.sub("", text).strip(" .,")
+    text = _AT_PATTERN.sub("", text)
+    text = _MONTH_DAY_RE.sub("", text)
+    text = _WEEKDAY_RE.sub("", text)
+    text = _TOMORROW_RE.sub("", text)
+    text = _TODAY_RE.sub("", text)
+    return re.sub(r"\s+", " ", text).strip(" .,")

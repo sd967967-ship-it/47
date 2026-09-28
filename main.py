@@ -578,6 +578,21 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
 
     # Passive task detection also runs here via passive_scan() above.
 
+    if lowered.startswith("remember event ") or lowered.startswith("add event ") \
+            or lowered.startswith("save event "):
+        import datetime as _dt
+        raw = re.sub(r"^(remember event|add event|save event)\s+", "", text,
+                     flags=re.IGNORECASE).strip()
+        due_at = time_parse.parse_due(raw)
+        description = time_parse.strip_due_phrase(raw) or raw
+        memory.add_task(description, due_at=due_at, source="explicit_event")
+        if due_at:
+            when = _dt.datetime.fromtimestamp(due_at).strftime("%A, %d %B at %H:%M")
+            speak(f"Saved event {description} for {when}. I'll remind you.")
+        else:
+            speak(f"Saved event {description} with no date — say it like 'Diwali party on 20 October'.")
+        return
+
     if lowered.startswith("remember that "):
         fact_sentence = text[len("remember that "):]
         key, value = memory.derive_key_and_value(fact_sentence)
