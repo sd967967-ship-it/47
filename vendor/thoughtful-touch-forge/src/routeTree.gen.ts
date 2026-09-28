@@ -13,8 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as FocusRouteImport } from './routes/focus'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as NotesRouteImport } from './routes/notes'
+import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TasksRouteImport } from './routes/tasks'
@@ -40,6 +42,11 @@ const FocusRoute = FocusRouteImport.update({
   path: '/focus',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MemoryRoute = MemoryRouteImport.update({
   id: '/memory',
   path: '/memory',
@@ -48,6 +55,11 @@ const MemoryRoute = MemoryRouteImport.update({
 const NotesRoute = NotesRouteImport.update({
   id: '/notes',
   path: '/notes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PermissionsRoute = PermissionsRouteImport.update({
+  id: '/permissions',
+  path: '/permissions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsRoute = ProjectsRouteImport.update({
@@ -76,8 +88,10 @@ export interface FileRoutesByFullPath {
   '/activity': typeof ActivityRoute
   '/calendar': typeof CalendarRoute
   '/focus': typeof FocusRoute
+  '/health': typeof HealthRoute
   '/memory': typeof MemoryRoute
   '/notes': typeof NotesRoute
+  '/permissions': typeof PermissionsRoute
   '/projects': typeof ProjectsRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
@@ -88,8 +102,10 @@ export interface FileRoutesByTo {
   '/activity': typeof ActivityRoute
   '/calendar': typeof CalendarRoute
   '/focus': typeof FocusRoute
+  '/health': typeof HealthRoute
   '/memory': typeof MemoryRoute
   '/notes': typeof NotesRoute
+  '/permissions': typeof PermissionsRoute
   '/projects': typeof ProjectsRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
@@ -101,8 +117,10 @@ export interface FileRoutesById {
   '/activity': typeof ActivityRoute
   '/calendar': typeof CalendarRoute
   '/focus': typeof FocusRoute
+  '/health': typeof HealthRoute
   '/memory': typeof MemoryRoute
   '/notes': typeof NotesRoute
+  '/permissions': typeof PermissionsRoute
   '/projects': typeof ProjectsRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
@@ -115,8 +133,10 @@ export interface FileRouteTypes {
     | '/activity'
     | '/calendar'
     | '/focus'
+    | '/health'
     | '/memory'
     | '/notes'
+    | '/permissions'
     | '/projects'
     | '/settings'
     | '/tasks'
@@ -127,8 +147,10 @@ export interface FileRouteTypes {
     | '/activity'
     | '/calendar'
     | '/focus'
+    | '/health'
     | '/memory'
     | '/notes'
+    | '/permissions'
     | '/projects'
     | '/settings'
     | '/tasks'
@@ -139,8 +161,10 @@ export interface FileRouteTypes {
     | '/activity'
     | '/calendar'
     | '/focus'
+    | '/health'
     | '/memory'
     | '/notes'
+    | '/permissions'
     | '/projects'
     | '/settings'
     | '/tasks'
@@ -152,8 +176,10 @@ export interface RootRouteChildren {
   ActivityRoute: typeof ActivityRoute
   CalendarRoute: typeof CalendarRoute
   FocusRoute: typeof FocusRoute
+  HealthRoute: typeof HealthRoute
   MemoryRoute: typeof MemoryRoute
   NotesRoute: typeof NotesRoute
+  PermissionsRoute: typeof PermissionsRoute
   ProjectsRoute: typeof ProjectsRoute
   SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
@@ -190,6 +216,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FocusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/memory': {
       id: '/memory'
       path: '/memory'
@@ -202,6 +235,13 @@ declare module '@tanstack/react-router' {
       path: '/notes'
       fullPath: '/notes'
       preLoaderRoute: typeof NotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/permissions': {
+      id: '/permissions'
+      path: '/permissions'
+      fullPath: '/permissions'
+      preLoaderRoute: typeof PermissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects': {
@@ -240,8 +280,10 @@ const rootRouteChildren: RootRouteChildren = {
   ActivityRoute: ActivityRoute,
   CalendarRoute: CalendarRoute,
   FocusRoute: FocusRoute,
+  HealthRoute: HealthRoute,
   MemoryRoute: MemoryRoute,
   NotesRoute: NotesRoute,
+  PermissionsRoute: PermissionsRoute,
   ProjectsRoute: ProjectsRoute,
   SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,

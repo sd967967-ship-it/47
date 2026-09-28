@@ -16,6 +16,8 @@ export const navItems: NavItem[] = [
   { label: "Focus", path: "/focus", icon: "timer" },
   { label: "Memory", path: "/memory", icon: "brain" },
   { label: "Activity", path: "/activity", icon: "activity" },
+  { label: "Permissions", path: "/permissions", icon: "lock" },
+  { label: "Health", path: "/health", icon: "health" },
   { label: "Settings", path: "/settings", icon: "settings" },
 ];
 
