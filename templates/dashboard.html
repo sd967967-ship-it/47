@@ -65,14 +65,10 @@
   #c2 { top:8px; right:8px; border-left:none; border-bottom:none; }
   #c3 { bottom:8px; left:8px; border-right:none; border-top:none; }
   #c4 { bottom:8px; right:8px; border-left:none; border-top:none; }
-  #infoRail {
     position:absolute; top:120px; right:16px; width:300px; max-height:60%;
     overflow-y:auto; color:#c7f5ff; font-size:13px; background:rgba(10,20,30,0.72);
     border:1px solid #2fbfff55; border-radius:8px; padding:10px 14px; display:none; z-index:10;
   }
-  #infoRail h3 { margin:0 0 4px; font-size:14px; letter-spacing:1px; color:#4fd8ff; font-family:var(--font-display); }
-  #infoRail .chip { display:inline-block; font-size:11px; border:1px solid #2fbfff88; border-radius:10px; padding:1px 8px; margin-bottom:6px; color:#9fe8ff; }
-  #infoRail pre { white-space:pre-wrap; margin:6px 0 0; font-size:12px; color:#c7f5ff; }
   #textPanel {
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
     width:min(620px,90%); max-height:46%;
@@ -149,7 +145,6 @@
   canvas { display:block; touch-action:none; }
   @media (max-width:640px) {
     #vitals { min-width:110px; font-size:11px; }
-    #infoRail { display:none; }
     #textPanel { width:auto; right:16px; }
   }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
@@ -192,7 +187,6 @@
   </div>
 </div>
 <div id="objLabel"></div>
-<div id="infoRail" aria-live="polite"><h3 id="railTitle">Object</h3><span class="chip" id="railType">3d</span></div>
 <div id="textPanel" aria-live="polite"><button id="textClose" title="Dismiss">✕</button><div id="imgStrip"></div><span id="textBody"></span></div>
 <div id="zoomBar"><button id="zoomIn" title="Zoom in">+</button><button id="zoomOut" title="Zoom out">−</button><button id="zoomReset" title="Reset view">⟡</button></div>
 <div id="inputBar">
@@ -398,10 +392,6 @@ function labelObject(text, sub) {
   el.style.display = 'block';
   const typeEl = document.getElementById('hudObj');
   if (typeEl) typeEl.textContent = 'OBJ:' + text.slice(0, 24);
-  const rail = document.getElementById('infoRail');
-  document.getElementById('railTitle').textContent = text;
-  document.getElementById('railType').textContent = sub || '3d object';
-  rail.style.display = 'block';
 }
 
 function renderBuilding(payload) {
