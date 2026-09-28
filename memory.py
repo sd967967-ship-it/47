@@ -307,3 +307,34 @@ def tasks_as_context() -> str:
     return ("The user's open tasks (mention relevant ones naturally, and suggest "
             "faster/smarter ways to get them done when it fits the conversation):\n"
             + "\n".join(lines))
+
+
+def find_fact_candidates(fragment: str, limit: int = 5):
+    """Facts whose key or value contains `fragment` (for 'forget X')."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT key, value FROM facts WHERE key LIKE ? ESCAPE '\\' "
+        "OR value LIKE ? ESCAPE '\\' LIMIT ?",
+        (f"%{_like_escape(fragment)}%", f"%{_like_escape(fragment)}%", limit),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def erase_all_memory():
+    """Wipe long-term facts + conversation history (NOT tasks/reminders).
+    Returns counts. Transactional per table; audit entry written by caller
+    without content."""
+    conn = _connect()
+    facts = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+    turns = conn.execute("SELECT COUNT(*) FROM conversation").fetchone()[0]
+    conn.execute("DELETE FROM facts")
+    conn.execute("DELETE FROM conversation")
+    conn.commit()
+    conn.close()
+    try:
+        from docs import INDEX_PATH as _idx
+        _idx.unlink(missing_ok=True)
+    except Exception:
+        pass
+    return {"facts": facts, "turns": turns}

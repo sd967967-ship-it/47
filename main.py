@@ -119,6 +119,7 @@ def _load_or_create_token() -> str:
 DASHBOARD_TOKEN = _load_or_create_token()
 DASHBOARD_HOST = os.environ.get("DASHBOARD_HOST", "127.0.0.1")
 DASHBOARD_PORT = int(os.environ.get("DASHBOARD_PORT", "5000"))
+START_TS = time.time()
 _authed_sids = set()
 _authed_lock = threading.Lock()
 
@@ -390,6 +391,35 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
     lowered = text.lower()
     if not text:
         return
+
+    import estop as _estop
+    if "kill agent 47" in lowered or lowered.strip() == "kill agent":
+        record = _estop.stop("chat", text[:120])
+        msg = ("Agent 47 is stopped. No new actions will run until you resume it. "
+               f"Cancelled: {', '.join(record['cancelled']) or 'nothing pending'}.")
+        speak(msg)
+        push_to_dashboard("text", {"content": msg})
+        push_to_dashboard("estop", {"stopped": True})
+        return
+    if lowered.strip() in ("resume 47", "resume agent", "resume agent 47"):
+        import lock as _lock2
+        if _lock2.is_configured() and not _lock2.is_unlocked():
+            speak("Locked — unlock 47 first, then resume.")
+            push_to_dashboard("text", {"content": "Locked — unlock 47 first, then resume."})
+            return
+        if _estop.resume():
+            speak("47 resumed. What would you like to do?")
+            push_to_dashboard("text", {"content": "47 resumed."})
+            push_to_dashboard("estop", {"stopped": False})
+        else:
+            speak("47 wasn't stopped.")
+        return
+    if _estop.is_stopped():
+        if lowered.strip() in ("status", "brain status", "help"):
+            pass  # read-only introspection stays available while stopped
+        else:
+            speak("Agent 47 is stopped. Say 'resume 47' to continue.")
+            return
     # ---- Confirmation gate for anything shell.py flagged as destructive.
     # Must be checked before anything else so "confirm" isn't swallowed by
     # a different branch, and so a pending destructive command can't be
@@ -399,6 +429,35 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
     if shell.has_pending(context_id):
         if lowered.strip() in ("confirm", "yes confirm", "confirm it", "yes run it", "do it"):
             command, elevate = shell.pop_pending(context_id)
+            if command.startswith("ERASE:FACT|"):
+                key = command.split("|", 1)[1]
+                if memory.forget_fact(key):
+                    try:
+                        import audit as _audit2
+                        _audit2.record("memory.erase_one")
+                    except Exception:
+                        pass
+                    speak(f"Forgot it. '{key}' is gone.")
+                    push_to_dashboard("text", {"content": "Memory deleted."})
+                else:
+                    speak("That memory was already gone.")
+                return
+            if command == "ERASE:ALL":
+                import lock as _lock3
+                if _lock3.is_configured() and not _lock3.is_unlocked():
+                    speak("Locked — unlock 47 first, then confirm erasing everything.")
+                    push_to_dashboard("text", {"content": "Locked — unlock 47 first."})
+                    return
+                counts = memory.erase_all_memory()
+                try:
+                    import audit as _audit3
+                    _audit3.record("memory.erase_all", **counts)
+                except Exception:
+                    pass
+                speak(f"Erased {counts['facts']} memories and {counts['turns']} conversation turns. "
+                      f"Tasks and reminders untouched.")
+                push_to_dashboard("text", {"content": "Memory erased."})
+                return
             if command.startswith("SEND-DOC:"):
                 # Staged document send (docs.py): extract locally, then ask
                 # the brain. Consent was the gate; content flows only now.
@@ -469,6 +528,31 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         removed = memory.clear_auto_detected_tasks()
         speak(f"Cleared {removed} auto-detected task{'s' if removed != 1 else ''}."
               if removed else "There weren't any auto-detected tasks to clear.")
+        return
+
+    if lowered.startswith("forget that") or lowered.startswith("forget "):
+        fragment = re.sub(r"^forget(\s+that)?\s+", "", lowered).strip()
+        if not fragment:
+            speak("Tell me which memory to forget.")
+            return
+        cands = memory.find_fact_candidates(fragment)
+        if not cands:
+            speak(f"I don't have a memory matching {fragment}.")
+            return
+        key, value = cands[0][0], cands[0][1]
+        shell.stage_for_confirmation(context_id, f"ERASE:FACT|{key}", False)
+        speak(f"I remember this: {value}. Say 'confirm' to forget it forever.")
+        push_to_dashboard("approval", {"kind": "memory", "command": key,
+                                       "action": "forget this memory"})
+        return
+
+    if lowered.strip() in ("erase memory", "erase all memory",
+                           "clear my saved preferences", "clear all memory"):
+        shell.stage_for_confirmation(context_id, "ERASE:ALL", False)
+        speak("This will erase all remembered facts and conversation history. "
+              "Tasks and reminders stay. Say 'confirm' to proceed, or tell me a smaller scope.")
+        push_to_dashboard("approval", {"kind": "memory", "command": "ERASE:ALL",
+                                       "action": "erase all memories"})
         return
 
     # ---- Real command-prompt access (see shell.py for the elevation and
@@ -1314,6 +1398,62 @@ def api_status():
     })
 
 
+@app.route("/api/permissions")
+def api_permissions():
+    """Permission Center data. Token-gated. Scopes only, never secrets."""
+    from flask import jsonify
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    import permissions as _perms
+    return jsonify({"permissions": _perms.registry()})
+
+
+@app.route("/api/health")
+def api_health():
+    """Agent + resource + security health. Token-gated. No secrets."""
+    from flask import jsonify
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    import time as _t
+    import ambient as _ambient
+    import estop as _estop
+    import lock as _lock
+    import focus as _focus
+    _provider, _pname = get_active_provider()
+    snap = {}
+    try:
+        snap = _ambient.get_system_snapshot()
+    except Exception:
+        pass
+    issues = []
+    if _provider is None:
+        issues.append({"level": "warn", "text": "AI brain has no key — local mode.",
+                       "fix": "Add XAI_API_KEY or GROQ_API_KEY, then restart."})
+    if _estop.is_stopped():
+        issues.append({"level": "stop", "text": "Agent 47 is STOPPED.",
+                       "fix": "Resume from the banner."})
+    freest = min((d.get("free_gb", 9999) for d in snap.get("drives", [])), default=9999)
+    if freest < 5:
+        issues.append({"level": "warn", "text": f"Drive space low ({freest} GB free).",
+                       "fix": "Clean downloads, empty recycle bin."})
+    if (snap.get("ram_percent") or 0) > 90:
+        issues.append({"level": "warn", "text": "Memory over 90% full.",
+                       "fix": "Close heavy apps."})
+    return jsonify({
+        "agent": {"brain": _pname or "unavailable",
+                  "uptime_s": int(_t.time() - START_TS),
+                  "estop": _estop.status(),
+                  "pending_approvals": len(shell._pending),
+                  "focus_live": len(_focus.status()),
+                  "lock": "set" if _lock.is_configured() else "not set"},
+        "resources": {"cpu": snap.get("cpu_percent"), "ram": snap.get("ram_percent"),
+                      "disk": snap.get("disk_percent"), "battery": snap.get("battery_percent"),
+                      "tasks_open": snap.get("tasks_open")},
+        "security": {"lock": "set" if _lock.is_configured() else "not set"},
+        "issues": issues,
+    })
+
+
 @app.route("/api/commands")
 def api_commands():
     """Token-gated command catalog (single source: help_catalog.py)."""
@@ -1471,6 +1611,49 @@ def on_connect():
 def on_disconnect():
     with _authed_lock:
         _authed_sids.discard(request.sid)
+
+
+def _socket_authed() -> bool:
+    with _authed_lock:
+        return request.sid in _authed_sids
+
+
+@socketio.on("unlock_attempt")
+def on_unlock_attempt(data):
+    """PIN check over an authed socket. The PIN is never logged or stored."""
+    if not _socket_authed():
+        return {"ok": False, "message": "Not connected."}
+    import lock as _lock
+    pin = str((data or {}).get("pin", ""))
+    ok, message = _lock.verify(pin)
+    return {"ok": ok, "message": message, "configured": _lock.is_configured()}
+
+
+@socketio.on("set_pin")
+def on_set_pin(data):
+    """First-time PIN setup (or change while unlocked). Never logged."""
+    if not _socket_authed():
+        return {"ok": False, "message": "Not connected."}
+    import lock as _lock
+    pin = str((data or {}).get("pin", ""))
+    if _lock.is_configured() and not _lock.is_unlocked():
+        return {"ok": False, "message": "Unlock first to change the PIN."}
+    try:
+        _lock.set_pin(pin)
+    except ValueError as e:
+        return {"ok": False, "message": str(e)}
+    _lock.verify(pin)
+    return {"ok": True, "message": "Lock is set."}
+
+
+@socketio.on("lock_now")
+def on_lock_now(_data=None):
+    if not _socket_authed():
+        return {"ok": False}
+    import lock as _lock
+    _lock.lock_now()
+    push_to_dashboard("estop", {"stopped": False, "locked": True})
+    return {"ok": True}
 
 
 @socketio.on("user_text_command")

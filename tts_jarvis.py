@@ -139,6 +139,16 @@ _worker_started = False
 _worker_lock = threading.Lock()
 
 
+def clear_queue():
+    """Drop pending utterances (emergency stop). Never raises."""
+    try:
+        while True:
+            _speak_queue.get_nowait()
+            _speak_queue.task_done()
+    except queue.Empty:
+        pass
+
+
 def _ensure_worker():
     global _worker_started
     with _worker_lock:
