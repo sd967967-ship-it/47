@@ -1454,6 +1454,99 @@ def api_health():
     })
 
 
+@app.route("/api/lock/status")
+def api_lock_status():
+    """Lock state (booleans only, never hashes). Token-gated."""
+    from flask import jsonify
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    import lock as _lock
+    return jsonify({"configured": _lock.is_configured(),
+                    "unlocked": _lock.is_unlocked()})
+
+
+@app.route("/api/lock/setup", methods=["POST"])
+def api_lock_setup():
+    """First-time PIN setup / change while unlocked. PIN never logged."""
+    from flask import jsonify
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    import lock as _lock
+    pin = str((request.get_json(silent=True) or {}).get("pin", ""))
+    if _lock.is_configured() and not _lock.is_unlocked():
+        abort(403)
+    try:
+        _lock.set_pin(pin)
+    except ValueError as e:
+        return jsonify({"ok": False, "message": str(e)}), 400
+    _lock.verify(pin)
+    try:
+        import audit as _audit
+        _audit.record("lock.setup")
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.route("/api/unlock", methods=["POST"])
+def api_unlock():
+    """Unlock attempt. PIN never logged; rate-limited in lock.py."""
+    from flask import jsonify
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    import lock as _lock
+    pin = str((request.get_json(silent=True) or {}).get("pin", ""))
+    ok, message = _lock.verify(pin)
+    return jsonify({"ok": ok, "message": message,
+                    "configured": _lock.is_configured()})
+
+
+@app.route("/api/estop", methods=["POST"])
+def api_estop():
+    """Emergency stop / resume over HTTP (same rules as voice command)."""
+    from flask import jsonify
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    import estop as _estop
+    import lock as _lock
+    action = str((request.get_json(silent=True) or {}).get("action", "stop"))
+    if action == "resume":
+        if _lock.is_configured() and not _lock.is_unlocked():
+            return jsonify({"ok": False, "message": "Unlock first."}), 403
+        return jsonify({"ok": True, "resumed": _estop.resume()})
+    record = _estop.stop("http")
+    return jsonify({"ok": True, "stopped": True, "cancelled": record["cancelled"]})
+
+
+@app.route("/api/focus", methods=["GET", "POST", "DELETE"])
+def api_focus():
+    """Focus sessions: GET status, POST {minutes} start, DELETE stop."""
+    from flask import jsonify
+    if not _check_token(request.args.get("token", "")):
+        abort(403)
+    import focus as _focus
+    if request.method == "GET":
+        return jsonify({"live": _focus.status()})
+    if request.method == "DELETE":
+        return jsonify({"ok": True, "stopped": _focus.stop_focus()})
+    try:
+        minutes = float((request.get_json(silent=True) or {}).get("minutes", 25))
+    except (TypeError, ValueError):
+        abort(400)
+
+    def _done(session):
+        speak(f"Focus complete — {session['minutes']} minutes done.")
+        push_to_dashboard("text", {"content": f"Focus complete ({session['minutes']} min)."})
+
+    sid = _focus.start_focus(minutes, "focus", _done)
+    try:
+        import audit as _audit
+        _audit.record("focus.start", minutes=minutes)
+    except Exception:
+        pass
+    return jsonify({"ok": True, "id": sid, "minutes": minutes})
+
+
 @app.route("/api/commands")
 def api_commands():
     """Token-gated command catalog (single source: help_catalog.py)."""
