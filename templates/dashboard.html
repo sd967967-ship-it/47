@@ -52,6 +52,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .menu-button{display:none}
 main{min-height:calc(100vh - 70px)}
 .home-stage{display:grid;grid-template-columns:minmax(0,1fr) 350px;min-height:calc(100vh - 70px)}
+[data-viewpanel][hidden]{display:none}
 .assistant-zone{padding:42px 44px 48px;min-width:0}
 .eyebrow{font:10px var(--font-mono);color:var(--primary);text-transform:uppercase;letter-spacing:.08em;margin:0 0 9px}
 .assistant-heading{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}
@@ -118,7 +119,8 @@ main{min-height:calc(100vh - 70px)}
 .fact-row{display:flex;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid var(--border);font-size:13px}
 .fact-row small{color:var(--muted-foreground)}
 .fact-row button{background:none;border:1px solid var(--border);border-radius:5px;color:var(--muted-foreground);font-size:11px;padding:2px 8px}
-.dialog-layer{position:fixed;inset:0;z-index:80;background:rgba(4,8,12,.68);display:flex;justify-content:center;align-items:flex-start;padding-top:12vh}
+.dialog-layer{position:fixed;inset:0;z-index:80;background:rgba(4,8,12,.68);display:flex;justify-content:center;align-items:flex-end;padding:0 0 9vh}
+.dialog-layer[hidden]{display:none}
 .command-dialog{width:min(600px,calc(100vw - 28px));background:var(--popover);border:1px solid var(--border);border-radius:8px;box-shadow:0 24px 80px rgba(0,0,0,.44);overflow:hidden;max-height:70vh;display:flex;flex-direction:column}
 .command-input{height:60px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--border);color:var(--primary);flex:none}
 .command-input input{flex:1;background:transparent;border:0;outline:0;color:var(--foreground)}

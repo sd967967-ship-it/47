@@ -66,6 +66,13 @@ class TestDashboardScript(unittest.TestCase):
         self.assertNotIn("railBody", text)
         self.assertIn('id="convo"', text)
 
+    def test_hidden_overlays_stay_hidden(self):
+        # Regression: author display:flex once overrode [hidden], leaving an
+        # invisible full-screen layer that blocked all typing ("Loading…").
+        text = HTML.read_text(encoding="utf-8")
+        self.assertIn(".dialog-layer[hidden]", text)
+        self.assertIn("[data-viewpanel][hidden]", text)
+
     def test_robotic_type_stack(self):
         text = HTML.read_text(encoding="utf-8")
         self.assertIn("Space Mono", text)
