@@ -46,6 +46,7 @@ GROUPS = [
         {"triggers": "top processes / system status / disk drives", "example": "system status"},
         {"triggers": "lock pc", "example": "lock pc"},
         {"triggers": "browse <url>", "example": "browse https://example.com"},
+        {"triggers": "scan wifi / wifi status", "example": "scan wifi networks"},
     ]},
     {"title": "Tasks & briefings", "items": [
         {"triggers": "remind me …", "example": "remind me to call mom in 20 minutes"},
@@ -56,6 +57,7 @@ GROUPS = [
         {"triggers": "audit log", "example": "show audit log"},
     ]},
     {"title": "3D & confirm words", "items": [
+        {"triggers": "generate <thing> 3d model", "example": "generate a building 3d model"},
         {"triggers": "make 3d of <thing>", "example": "make 3d of boombox"},
         {"triggers": "what does <x> look like", "example": "what does a wrench look like"},
         {"triggers": "confirm", "example": "say confirm to approve a staged action"},

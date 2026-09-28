@@ -141,3 +141,36 @@ def indexed_search(fragment: str):
         if frag in name:
             hits.extend(paths)
     return hits[:15]
+
+
+def _notes_dir() -> Path:
+    override = os.environ.get("47_NOTES_DIR", "").strip()
+    target = Path(override).expanduser() if override else (
+        Path.home() / "Documents" / "47-notes")
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def create_note(text: str) -> str:
+    """Save a timestamped markdown note locally. Returns the filename."""
+    import datetime as _dt
+    body = text.strip()
+    if not body:
+        return "Tell me what the note should say."
+    stamp = _dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    target = _notes_dir() / f"note-{stamp}.md"
+    try:
+        target.write_text(f"# Note — {stamp}\n\n{body}\n", encoding="utf-8")
+        return f"Note saved as {target.name}."
+    except OSError as e:
+        return f"Couldn't save the note: {e}"
+
+
+def list_notes(count: int = 5):
+    """Newest note filenames, or [] when the folder is empty."""
+    try:
+        files = sorted(_notes_dir().glob("note-*.md"),
+                       key=lambda p: p.stat().st_mtime, reverse=True)
+        return [f.name for f in files[:max(1, min(count, 20))]]
+    except OSError:
+        return []

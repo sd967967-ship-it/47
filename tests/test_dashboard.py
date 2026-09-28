@@ -53,7 +53,8 @@ class TestDashboardScript(unittest.TestCase):
         for token in ("function sendCommand", "user_text_command",
                       "function renderEmblem", "GLTFLoader",
                       "/api/commands", "/api/feedback", "/api/tasks",
-                      "/api/memory", "/api/audit", "webkitSpeechRecognition"):
+                      "/api/memory", "/api/audit", "webkitSpeechRecognition",
+                      "toggleMic", "click the globe"):
             self.assertIn(token, script, f"missing {token}")
         markup = HTML.read_text(encoding="utf-8")
         for token in ("convo", "typedInput", "paletteLayer", "sidebar",

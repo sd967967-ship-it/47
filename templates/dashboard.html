@@ -277,12 +277,19 @@ scene.add(grid);
 let dataGroup = new THREE.Group();
 scene.add(dataGroup);
 let autoRotate = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+let downX = 0, downY = 0, downT = 0;
 let controls = null;
 (function initFreeControls() {
   const el = renderer.domElement;
+  el.title = 'Drag to rotate · scroll to zoom · click the globe for voice input';
   let dragging = false, btn = 0, lx = 0, ly = 0, pinchD = 0;
-  el.addEventListener('mousedown', (e) => { dragging = true; btn = e.button; lx = e.clientX; ly = e.clientY; autoRotate = false; });
-  window.addEventListener('mouseup', () => { dragging = false; });
+  el.addEventListener('mousedown', (e) => { dragging = true; btn = e.button; lx = e.clientX; ly = e.clientY; autoRotate = false; downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+  window.addEventListener('mouseup', (e) => {
+    if (dragging && btn === 0 && Math.hypot(e.clientX - downX, e.clientY - downY) < 6 && performance.now() - downT < 400) {
+      if (typeof window.toggleMic === 'function') window.toggleMic();
+    }
+    dragging = false;
+  });
   window.addEventListener('mousemove', (e) => {
     if (!dragging) return;
     const dx = e.clientX - lx, dy = e.clientY - ly;
@@ -1062,6 +1069,11 @@ document.getElementById('activeCancel').addEventListener('click', () => {
 (function initMic() {
   const btn = document.getElementById('micBtn');
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const setMicUI = (live) => {
+    btn.classList.toggle('mic-live', live);
+    btn.textContent = live ? 'Stop' : 'Mic';
+  };
+  window.toggleMic = () => { btn.click(); };
   if (!SR) {
     btn.title = 'Voice typing unavailable in this browser';
     btn.style.opacity = '0.4';
@@ -1079,12 +1091,12 @@ document.getElementById('activeCancel').addEventListener('click', () => {
       for (const r of e.results) txt += r[0].transcript;
       document.getElementById('typedInput').value = txt;
     };
-    rec.onend = () => { live = false; btn.classList.remove('mic-live'); setState('idle'); };
-    rec.onerror = () => { live = false; btn.classList.remove('mic-live'); setState('idle'); };
+    rec.onend = () => { live = false; setMicUI(false); setState('idle'); };
+    rec.onerror = () => { live = false; setMicUI(false); setState('idle'); };
     try {
       rec.start();
       live = true;
-      btn.classList.add('mic-live');
+      setMicUI(true);
       setState('listening');
     } catch (e) { /* already started */ }
   });

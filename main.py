@@ -742,20 +742,6 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
         })
         return
 
-    if lowered.startswith("make 3d of ") or lowered.startswith("make a 3d of "):
-        import models3d
-        subject = re.sub(r"^make (a )?3d of ", "", lowered).strip(" ?.")
-        found = models3d.resolve(subject)
-        if found:
-            speak(f"Loading the {found} model for {subject}. Drag to rotate, scroll to zoom.")
-            push_to_dashboard("model3d", {"file": found, "label": subject[:60]})
-            push_to_dashboard("text", {"content": f"Real 3D model: {found} (CC0 library)."})
-        else:
-            speak(f"No library model for {subject} yet — showing the parametric scene instead.")
-            push_to_dashboard("object3d", {"type": "generic_object",
-                                           "label": subject[:60] or "Object"})
-        return
-
     if lowered.startswith("index my files"):
         import docs as _docs2
         stats = _docs2.build_index()
@@ -786,6 +772,128 @@ def handle_command(text: str, context_id: str = VOICE_CONTEXT):
             speak(f"Found {os.path.basename(path)}. Say 'confirm' to send it to the brain to {action} — "
                   f"nothing leaves this laptop until you do.")
             return
+
+    if lowered.startswith("add task "):
+        raw = text[len("add task "):].strip()
+        if not raw:
+            speak("Tell me the task to add.")
+            return
+        due_at = time_parse.parse_due(raw)
+        description = time_parse.strip_due_phrase(raw) or raw
+        memory.add_task(description, due_at=due_at, source="explicit_task")
+        if due_at:
+            import datetime as _dt2
+            when = _dt2.datetime.fromtimestamp(due_at).strftime("%A at %H:%M")
+            speak(f"Added task {description}, due {when}.")
+        else:
+            speak(f"Added task {description}.")
+        push_to_dashboard("briefing", {"headlines": [], "tasks_open": len(memory.list_open_tasks())})
+        return
+
+    if lowered.startswith("plan my day") or lowered == "plan my day":
+        import watch as _watch2
+        agenda = _watch2.agenda_text()
+        open_tasks = memory.list_open_tasks()
+        heads = _watch2.get_world_headlines(limit=3)
+        parts = ["Here is your day plan.", agenda]
+        if open_tasks:
+            parts.append("Open tasks: " + "; ".join(t[1] for t in open_tasks[:5]) + ".")
+        if heads:
+            parts.append("Headline to know: " + heads[0])
+        report = "\n\n".join(parts)
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if lowered.startswith("start focus") or lowered.startswith("focus for "):
+        import focus as _focus
+        raw = re.sub(r"^(start focus|focus for)\s*", "", lowered).strip()
+        due = time_parse.parse_due(raw or "in 25 minutes")
+        minutes = max(1, round(((due or 0) - __import__("time").time()) / 60)) if due else 25
+
+        def _done(_session, _cid=context_id):
+            speak(f"Focus complete — {minutes} minutes done. Take a breath.")
+            push_to_dashboard("text", {"content": f"Focus complete ({minutes} min)."})
+
+        sid = _focus.start_focus(minutes, "focus", _done)
+        speak(f"Focus started for {minutes} minutes. I'll tell you when time is up.")
+        push_to_dashboard("text", {"content": f"Focus session #{sid}: {minutes} minutes."})
+        return
+
+    if lowered.strip() in ("stop focus", "cancel focus", "end focus"):
+        import focus as _focus2
+        if _focus2.stop_focus():
+            speak("Focus session stopped.")
+            push_to_dashboard("text", {"content": "Focus session stopped."})
+        else:
+            speak("No focus session is running.")
+        return
+
+    if "focus status" in lowered:
+        import focus as _focus3
+        live = _focus3.status()
+        if not live:
+            speak("No focus session running.")
+        else:
+            import time as _t3
+            left = max(0, int((live[0]["ends_at"] - _t3.time()) // 60))
+            speak(f"Focus running, about {left} minutes left.")
+        return
+
+    if lowered.startswith("create note "):
+        import docs as _docs4
+        report = _docs4.create_note(text[len("create note "):])
+        speak(report)
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if "my notes" in lowered or "list notes" in lowered:
+        import docs as _docs5
+        names = _docs5.list_notes()
+        report = "Your notes:\n" + "\n".join(f"- {n}" for n in names) if names else "No notes yet — say 'create note …'."
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if "wifi" in lowered and any(k in lowered for k in
+            ("scan", "networks", "coverage", "strength", "signal", "around")):
+        import wifi as _wifi
+        chart, report = _wifi.scan_networks()
+        speak(report[:280])
+        if chart:
+            push_to_dashboard("bars", {"labels": chart["labels"], "values": chart["values"]})
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if ("wifi" in lowered and ("connected" in lowered or "status" in lowered
+                               or "am i on" in lowered)) or "which wifi" in lowered:
+        import wifi as _wifi2
+        report = _wifi2.current_link() + " " + _wifi2.coverage_tips()
+        speak(report[:280])
+        push_to_dashboard("text", {"content": report})
+        return
+
+    if re.match(r".*?\b(generate|create|build)\b.*?\b(3d|model|building|building model)\b", lowered) \
+            or lowered.startswith("make 3d of ") or lowered.startswith("make a 3d of "):
+        import visual3d as _v3d
+        import models3d as _m3d
+        subject = re.sub(r"^(generate|create|build|make)\s+(a\s+)?", "", lowered).strip()
+        subject = re.sub(r"\s*(3d\s+)?model(s)?\s*(of\s+)?", " ", subject).strip(" ?.")
+        category = _v3d.classify(subject) or _v3d.classify(text)
+        real = _m3d.resolve(subject or text, category)
+        if real:
+            speak(f"Loading the real {real} model for {subject or 'that'}. Drag to rotate, scroll to zoom.")
+            push_to_dashboard("model3d", {"file": real, "label": (subject or text)[:60]})
+            push_to_dashboard("text", {"content": f"Real 3D model: {real} (CC0 library)."})
+        elif category:
+            kind, payload = _v3d.build_payload(category, subject or text)
+            speak(f"Building a {category} scene for {subject or 'that'}.")
+            if kind:
+                push_to_dashboard(kind, payload)
+            push_to_dashboard("text", {"content": f"Parametric 3D scene: {category}."})
+        else:
+            speak("Tell me what to generate — a building, vehicle, tool, or object.")
+        return
 
     if "send email" in lowered or "write an email" in lowered:
         speak("Email needs the Gmail API setup — see actions.py for steps.")
