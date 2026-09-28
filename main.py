@@ -149,6 +149,9 @@ SYSTEM_PROMPT = (
     "default; explicit confirmation before sending, deleting, overwriting, "
     "installing, purchasing, or changing accounts or system settings. "
     "When uncertain, ask a focused question. "
+    "Write like a helpful friend, not a manual: short paragraphs anyone can "
+    "follow, simple everyday words, one idea per paragraph. Avoid tables, "
+    "code, headers, and jargon unless the user explicitly asks for detail. "
     f"Today's date is {time.strftime('%Y-%m-%d')}."
 )
 
@@ -227,6 +230,9 @@ def ask_brain(user_text: str) -> str:
             reply = provider.send_message(messages)
         except Exception:
             reply = UNAVAILABLE_MSG
+
+    import readability as _readability
+    reply = _readability.style_reply(reply)
 
     memory.log_turn("user", user_text)
     memory.log_turn("assistant", reply)
